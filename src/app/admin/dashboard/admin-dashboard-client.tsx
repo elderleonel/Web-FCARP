@@ -41,6 +41,8 @@ type AdminDashboardClientProps = {
   userEmail: string;
 };
 
+type AdminView = 'visao' | 'calendario' | 'disciplinas' | 'apoio';
+
 const WEEKDAY_OPTIONS = [
   { label: 'Seg', value: 1 },
   { label: 'Ter', value: 2 },
@@ -107,6 +109,7 @@ export function AdminDashboardClient({
   const [professorMessage, setProfessorMessage] = useState('');
   const [disciplinaMessage, setDisciplinaMessage] = useState('');
   const [eventoMessage, setEventoMessage] = useState('');
+  const [activeView, setActiveView] = useState<AdminView>('visao');
   const [editingCursoId, setEditingCursoId] = useState<string | null>(null);
   const [editingProfessorId, setEditingProfessorId] = useState<string | null>(null);
   const [editingDisciplinaId, setEditingDisciplinaId] = useState<string | null>(null);
@@ -1132,6 +1135,31 @@ export function AdminDashboardClient({
           {statusMessage}
         </div>
 
+        <section className="mt-6 rounded-[28px] border border-[#e7ebf0] bg-white p-3">
+          <div className="grid gap-2 md:grid-cols-4">
+            <AdminViewButton
+              active={activeView === 'visao'}
+              label="Visao do curso"
+              onClick={() => setActiveView('visao')}
+            />
+            <AdminViewButton
+              active={activeView === 'disciplinas'}
+              label="Disciplinas"
+              onClick={() => setActiveView('disciplinas')}
+            />
+            <AdminViewButton
+              active={activeView === 'calendario'}
+              label="Calendario"
+              onClick={() => setActiveView('calendario')}
+            />
+            <AdminViewButton
+              active={activeView === 'apoio'}
+              label="Apoio admin"
+              onClick={() => setActiveView('apoio')}
+            />
+          </div>
+        </section>
+
         <div className="mt-8 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-4">
             <section className="rounded-[28px] border border-[#e4e9f0] bg-[linear-gradient(135deg,#fcfdff,#f2f6fb)] p-5">
@@ -1179,6 +1207,7 @@ export function AdminDashboardClient({
               </div>
             </section>
 
+            {activeView === 'calendario' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef0ff] text-[#5b61ff]">
@@ -1395,7 +1424,9 @@ export function AdminDashboardClient({
                 </div>
               </form>
             </section>
+            ) : null}
 
+            {activeView === 'disciplinas' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ecfff2] text-[#147a46]">
@@ -1533,7 +1564,9 @@ export function AdminDashboardClient({
                 </div>
               </div>
             </section>
+            ) : null}
 
+            {activeView === 'apoio' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff7e8] text-[#9a6c00]">
@@ -1778,9 +1811,11 @@ export function AdminDashboardClient({
                 </EditableSection>
               </div>
             </section>
+            ) : null}
           </div>
 
           <div className="space-y-4">
+            {(activeView === 'visao' || activeView === 'calendario' || activeView === 'disciplinas') ? (
             <section className="rounded-[28px] bg-[linear-gradient(135deg,#111827,#1f2937)] p-5 text-white">
               <div className="grid gap-3 sm:grid-cols-4">
                 <AdminStat
@@ -1805,7 +1840,9 @@ export function AdminDashboardClient({
                 />
               </div>
             </section>
+            ) : null}
 
+            {(activeView === 'visao' || activeView === 'disciplinas') ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
                 Progresso por disciplina do curso
@@ -1848,7 +1885,9 @@ export function AdminDashboardClient({
                 )}
               </div>
             </section>
+            ) : null}
 
+            {(activeView === 'visao' || activeView === 'apoio') ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
                 Eventos e bloqueios
@@ -1869,7 +1908,9 @@ export function AdminDashboardClient({
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {(activeView === 'visao' || activeView === 'calendario') ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
                 Calendario do curso
@@ -1912,6 +1953,7 @@ export function AdminDashboardClient({
                 ) : null}
               </div>
             </section>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1992,6 +2034,30 @@ function SmallSubmit({
       className="inline-flex items-center gap-2 rounded-full bg-[#121216] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-70"
     >
       <Plus className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}
+
+function AdminViewButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl px-4 py-3 text-sm font-medium transition ${
+        active
+          ? 'bg-[#163b65] text-white shadow-[0_12px_24px_rgba(22,59,101,0.18)]'
+          : 'bg-[#f4f6f8] text-[#46505c] hover:bg-[#ecf0f4]'
+      }`}
+    >
       {label}
     </button>
   );
