@@ -1,11 +1,5 @@
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import {
-  fallbackCursos,
-  fallbackDisciplinas,
-  fallbackEventos,
-  fallbackIntercursos,
-  fallbackModulos,
-  fallbackProfessores,
   type CronogramaModulo,
   type Curso,
   type Disciplina,
@@ -22,7 +16,7 @@ export type PlatformData = {
   intercursos: Intercurso[];
   message: string;
   professores: Professor[];
-  source: 'mock' | 'supabase';
+  source: 'supabase';
 };
 
 export async function loadPlatformData(): Promise<PlatformData> {
@@ -30,15 +24,15 @@ export async function loadPlatformData(): Promise<PlatformData> {
 
   if (!supabase) {
     return {
-      cronogramaModulos: fallbackModulos,
-      cursos: fallbackCursos,
-      disciplinas: fallbackDisciplinas,
-      eventosFeriados: fallbackEventos,
-      intercursos: fallbackIntercursos,
+      cronogramaModulos: [],
+      cursos: [],
+      disciplinas: [],
+      eventosFeriados: [],
+      intercursos: [],
       message:
         'NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY ainda nao foram definidos.',
-      professores: fallbackProfessores,
-      source: 'mock',
+      professores: [],
+      source: 'supabase',
     };
   }
 
@@ -87,15 +81,15 @@ export async function loadPlatformData(): Promise<PlatformData> {
     intercursosResult.error
   ) {
     return {
-      cronogramaModulos: fallbackModulos,
-      cursos: fallbackCursos,
-      disciplinas: fallbackDisciplinas,
-      eventosFeriados: fallbackEventos,
-      intercursos: fallbackIntercursos,
+      cronogramaModulos: [],
+      cursos: [],
+      disciplinas: [],
+      eventosFeriados: [],
+      intercursos: [],
       message:
-        'Supabase conectado, mas as tabelas FCARP DOC ainda nao responderam. Mantive os dados de exemplo.',
-      professores: fallbackProfessores,
-      source: 'mock',
+        'Supabase conectado, mas ainda houve falha ao consultar as tabelas do calendario academico.',
+      professores: [],
+      source: 'supabase',
     };
   }
 
@@ -106,15 +100,45 @@ export async function loadPlatformData(): Promise<PlatformData> {
 
   if (!hasMinimumData) {
     return {
-      cronogramaModulos: fallbackModulos,
-      cursos: fallbackCursos,
-      disciplinas: fallbackDisciplinas,
-      eventosFeriados: fallbackEventos,
-      intercursos: fallbackIntercursos,
+      cronogramaModulos: (modulosResult.data ?? []).map((item) => ({
+        id: item.id,
+        cargaHorariaSemanal: item.carga_horaria_semanal,
+        dataFim: item.data_fim,
+        dataInicio: item.data_inicio,
+        disciplinaId: item.disciplina_id,
+        observacoes: item.observacoes,
+        professorId: item.professor_id,
+        sala: item.sala,
+      })),
+      cursos: (cursosResult.data ?? []).map((item) => ({
+        cargaHorariaTotal: item.carga_horaria_total,
+        corHex: item.cor_hex,
+        id: item.id,
+        nome: item.nome,
+      })),
+      disciplinas: (disciplinasResult.data ?? []).map((item) => ({
+        id: item.id,
+        nome: item.nome,
+      })),
+      eventosFeriados: (eventosResult.data ?? []).map((item) => ({
+        data: item.data,
+        id: item.id,
+        nome: item.nome,
+        tipo: item.tipo,
+      })),
+      intercursos: (intercursosResult.data ?? []).map((item) => ({
+        cronogramaModuloId: item.cronograma_modulo_id,
+        cursoId: item.curso_id,
+      })),
       message:
-        'Supabase conectado, mas o banco ainda nao tem dados suficientes para substituir o mock.',
-      professores: fallbackProfessores,
-      source: 'mock',
+        'Supabase conectado. Cadastre cursos, professores e disciplinas para iniciar o uso do sistema.',
+      professores: (professoresResult.data ?? []).map((item) => ({
+        cidadeOrigem: item.cidade_origem,
+        especialidade: item.especialidade,
+        id: item.id,
+        nome: item.nome,
+      })),
+      source: 'supabase',
     };
   }
 
