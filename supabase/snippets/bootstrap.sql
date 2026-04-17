@@ -16,7 +16,8 @@ create table if not exists professores (
 
 create table if not exists disciplinas (
   id uuid primary key default uuid_generate_v4(),
-  nome text not null unique
+  nome text not null unique,
+  carga_horaria_total integer check (carga_horaria_total > 0)
 );
 
 do $$ begin
@@ -40,10 +41,48 @@ create table if not exists cronograma_modulos (
   data_inicio date not null,
   data_fim date not null,
   carga_horaria_semanal integer not null check (carga_horaria_semanal > 0),
+  carga_horaria_diaria integer check (carga_horaria_diaria > 0 and carga_horaria_diaria <= 4),
+  dias_semana smallint[] default '{}',
   sala text,
   observacoes text,
   constraint cronograma_data_ck check (data_fim >= data_inicio)
 );
+
+alter table disciplinas
+  add column if not exists carga_horaria_total integer;
+
+alter table cronograma_modulos
+  add column if not exists carga_horaria_diaria integer;
+
+alter table cronograma_modulos
+  add column if not exists dias_semana smallint[] default '{}';
+
+alter table disciplinas
+  drop constraint if exists disciplinas_carga_horaria_total_check;
+
+alter table disciplinas
+  add constraint disciplinas_carga_horaria_total_check
+  check (carga_horaria_total is null or carga_horaria_total > 0);
+
+alter table cronograma_modulos
+  drop constraint if exists cronograma_modulos_carga_horaria_diaria_check;
+
+alter table cronograma_modulos
+  add constraint cronograma_modulos_carga_horaria_diaria_check
+  check (carga_horaria_diaria is null or (carga_horaria_diaria > 0 and carga_horaria_diaria <= 4));
+
+alter table cronograma_modulos
+  drop constraint if exists cronograma_modulos_dias_semana_check;
+
+alter table cronograma_modulos
+  add constraint cronograma_modulos_dias_semana_check
+  check (
+    dias_semana is null
+    or (
+      cardinality(dias_semana) > 0
+      and dias_semana <@ array[1, 2, 3, 4, 5]::smallint[]
+    )
+  );
 
 create table if not exists intercursos (
   cronograma_modulo_id uuid not null references cronograma_modulos(id) on delete cascade,

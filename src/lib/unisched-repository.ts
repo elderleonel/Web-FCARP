@@ -54,7 +54,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
       .order('nome', { ascending: true }),
     supabase
       .from('disciplinas')
-      .select('id, nome')
+      .select('id, nome, carga_horaria_total')
       .order('nome', { ascending: true }),
     supabase
       .from('eventos_feriados')
@@ -63,7 +63,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
     supabase
       .from('cronograma_modulos')
       .select(
-        'id, disciplina_id, professor_id, data_inicio, data_fim, carga_horaria_semanal, sala, observacoes'
+        'id, disciplina_id, professor_id, data_inicio, data_fim, carga_horaria_semanal, carga_horaria_diaria, dias_semana, sala, observacoes'
       )
       .order('data_inicio', { ascending: true }),
     supabase
@@ -101,11 +101,13 @@ export async function loadPlatformData(): Promise<PlatformData> {
   if (!hasMinimumData) {
     return {
       cronogramaModulos: (modulosResult.data ?? []).map((item) => ({
+        cargaHorariaDiaria: item.carga_horaria_diaria,
         id: item.id,
         cargaHorariaSemanal: item.carga_horaria_semanal,
         dataFim: item.data_fim,
         dataInicio: item.data_inicio,
         disciplinaId: item.disciplina_id,
+        diasSemana: item.dias_semana ?? [],
         observacoes: item.observacoes,
         professorId: item.professor_id,
         sala: item.sala,
@@ -117,6 +119,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
         nome: item.nome,
       })),
       disciplinas: (disciplinasResult.data ?? []).map((item) => ({
+        cargaHorariaTotal: item.carga_horaria_total,
         id: item.id,
         nome: item.nome,
       })),
@@ -144,11 +147,13 @@ export async function loadPlatformData(): Promise<PlatformData> {
 
   return {
     cronogramaModulos: (modulosResult.data ?? []).map((item) => ({
+      cargaHorariaDiaria: item.carga_horaria_diaria,
       id: item.id,
       cargaHorariaSemanal: item.carga_horaria_semanal,
       dataFim: item.data_fim,
       dataInicio: item.data_inicio,
       disciplinaId: item.disciplina_id,
+      diasSemana: item.dias_semana ?? [],
       observacoes: item.observacoes,
       professorId: item.professor_id,
       sala: item.sala,
@@ -160,6 +165,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
       nome: item.nome,
     })),
     disciplinas: (disciplinasResult.data ?? []).map((item) => ({
+      cargaHorariaTotal: item.carga_horaria_total,
       id: item.id,
       nome: item.nome,
     })),

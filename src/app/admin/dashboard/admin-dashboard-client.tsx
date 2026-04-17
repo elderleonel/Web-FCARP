@@ -25,6 +25,7 @@ import {
   buildCronogramaCards,
   formatDateRange,
   getCourseProgress,
+  getDisciplinaProgress,
   getNextSuggestedModuleStartDate,
   isDateWithinRange,
   rangesOverlap,
@@ -39,6 +40,18 @@ import {
 type AdminDashboardClientProps = {
   userEmail: string;
 };
+
+const WEEKDAY_OPTIONS = [
+  { label: 'Seg', value: 1 },
+  { label: 'Ter', value: 2 },
+  { label: 'Qua', value: 3 },
+  { label: 'Qui', value: 4 },
+  { label: 'Sex', value: 5 },
+] as const;
+
+function getModuloWeeklyHours(diasSemana: number[], cargaHorariaDiaria: number) {
+  return diasSemana.length * cargaHorariaDiaria;
+}
 
 export function AdminDashboardClient({
   userEmail,
@@ -89,7 +102,9 @@ export function AdminDashboardClient({
   const [editProfessorEspecialidade, setEditProfessorEspecialidade] = useState('');
 
   const [novaDisciplinaNome, setNovaDisciplinaNome] = useState('');
+  const [novaDisciplinaCarga, setNovaDisciplinaCarga] = useState('72');
   const [editDisciplinaNome, setEditDisciplinaNome] = useState('');
+  const [editDisciplinaCarga, setEditDisciplinaCarga] = useState('72');
 
   const [novoEventoNome, setNovoEventoNome] = useState('');
   const [novoEventoData, setNovoEventoData] = useState('');
@@ -103,10 +118,11 @@ export function AdminDashboardClient({
   const [disciplinaId, setDisciplinaId] = useState('');
   const [professorId, setProfessorId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
-  const [cargaHorariaSemanal, setCargaHorariaSemanal] = useState('20');
+  const [cargaHorariaDiaria, setCargaHorariaDiaria] = useState('4');
   const [sala, setSala] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [selectedWeekDays, setSelectedWeekDays] = useState<number[]>([1, 2, 3, 4, 5]);
 
   const cronogramaCards = useMemo(
     () =>
@@ -131,6 +147,21 @@ export function AdminDashboardClient({
       })),
     [cursos, modulos, intercursos]
   );
+
+  const selectedDisciplina = useMemo(
+    () => disciplinas.find((item) => item.id === disciplinaId) ?? null,
+    [disciplinaId, disciplinas]
+  );
+
+  const selectedDailyHours = Number(cargaHorariaDiaria) || 0;
+  const previewWeeklyHours = getModuloWeeklyHours(selectedWeekDays, selectedDailyHours);
+  const disciplinaProgress = useMemo(
+    () => getDisciplinaProgress(selectedDisciplina, modulos),
+    [selectedDisciplina, modulos]
+  );
+  const previewRemainingHours = disciplinaProgress
+    ? Math.max(disciplinaProgress.total - disciplinaProgress.scheduled - previewWeeklyHours, 0)
+    : null;
 
   useEffect(() => {
     let isMounted = true;
@@ -252,6 +283,9 @@ export function AdminDashboardClient({
     resetEditingStates();
     setEditingDisciplinaId(disciplina.id);
     setEditDisciplinaNome(disciplina.nome);
+    setEditDisciplinaCarga(
+      disciplina.cargaHorariaTotal ? String(disciplina.cargaHorariaTotal) : '72'
+    );
     setDisciplinaMessage('');
   }
 
@@ -352,12 +386,18 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (Number(editDisciplinaCarga) <= 0) {
+      setDisciplinaMessage('Informe a carga horaria semestral da disciplina.');
+      return;
+    }
+
     setSavingDisciplinaId(disciplinaIdToUpdate);
     setDisciplinaMessage('Atualizando disciplina...');
 
     const { error } = await supabase
       .from('disciplinas')
       .update({
+        carga_horaria_total: Number(editDisciplinaCarga),
         nome: editDisciplinaNome.trim(),
       })
       .eq('id', disciplinaIdToUpdate);
@@ -549,9 +589,15 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (Number(novaDisciplinaCarga) <= 0) {
+      setDisciplinaMessage('Informe a carga horaria semestral da disciplina.');
+      return;
+    }
+
     setSubmittingDisciplina(true);
     setDisciplinaMessage('Salvando disciplina...');
     const { error } = await supabase.from('disciplinas').insert({
+      carga_horaria_total: Number(novaDisciplinaCarga),
       nome: novaDisciplinaNome.trim(),
     });
 
@@ -562,6 +608,7 @@ export function AdminDashboardClient({
     }
 
     setNovaDisciplinaNome('');
+    setNovaDisciplinaCarga('72');
     await reloadPlatformData();
     setSubmittingDisciplina(false);
     setDisciplinaMessage('Disciplina cadastrada com sucesso.');
@@ -622,6 +669,43 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (!selectedDisciplina) {
+      setStatusMessage('Selecione uma disciplina valida para montar a semana.');
+      return;
+    }
+
+    if (!selectedDisciplina.cargaHorariaTotal) {
+      setStatusMessage(
+        'Defina a carga horaria semestral da disciplina antes de criar aulas semanais.'
+      );
+      return;
+    }
+
+    if (!selectedWeekDays.length) {
+      setStatusMessage('Selecione pelo menos um dia letivo na semana.');
+      return;
+    }
+
+    if (selectedDailyHours <= 0 || selectedDailyHours > 4) {
+      setStatusMessage('A carga diaria deve ficar entre 1h e 4h por dia.');
+      return;
+    }
+
+    if (previewWeeklyHours <= 0) {
+      setStatusMessage('A carga semanal calculada precisa ser maior que zero.');
+      return;
+    }
+
+    if (
+      disciplinaProgress &&
+      disciplinaProgress.scheduled + previewWeeklyHours > disciplinaProgress.total
+    ) {
+      setStatusMessage(
+        `A disciplina ${selectedDisciplina.nome} ultrapassa a carga prevista. Restam ${disciplinaProgress.remaining}h para agendar.`
+      );
+      return;
+    }
+
     const inicio = new Date(`${dataInicio}T00:00:00`);
     const fim = addDays(inicio, 4);
     const dataFim = fim.toISOString().slice(0, 10);
@@ -677,11 +761,13 @@ export function AdminDashboardClient({
     const { data: moduloInserido, error: moduloError } = await supabase
       .from('cronograma_modulos')
       .insert({
+        carga_horaria_diaria: selectedDailyHours,
+        carga_horaria_semanal: previewWeeklyHours,
+        dias_semana: selectedWeekDays,
         disciplina_id: disciplinaId,
         professor_id: professorId || null,
         data_inicio: dataInicio,
         data_fim: dataFim,
-        carga_horaria_semanal: Number(cargaHorariaSemanal),
         sala: sala || null,
         observacoes: observacoes || null,
       })
@@ -708,12 +794,15 @@ export function AdminDashboardClient({
     }
 
     setDataInicio(getNextSuggestedModuleStartDate(modulos, eventos, addDays(inicio, 7)));
-    setCargaHorariaSemanal('20');
+    setCargaHorariaDiaria('4');
+    setSelectedWeekDays([1, 2, 3, 4, 5]);
     setSala('');
     setObservacoes('');
     await reloadPlatformData();
     setSubmittingModulo(false);
-    setStatusMessage('Modulo criado com validacao de conflitos e vinculado aos cursos selecionados.');
+    setStatusMessage(
+      `Semana criada para ${selectedDisciplina.nome} com ${previewWeeklyHours}h previstas e vinculada aos cursos selecionados.`
+    );
   }
 
   async function handleLogout() {
@@ -732,6 +821,14 @@ export function AdminDashboardClient({
       current.includes(cursoId)
         ? current.filter((item) => item !== cursoId)
         : [...current, cursoId]
+    );
+  }
+
+  function toggleWeekDay(day: number) {
+    setSelectedWeekDays((current) =>
+      current.includes(day)
+        ? current.filter((item) => item !== day)
+        : [...current, day].sort((left, right) => left - right)
     );
   }
 
@@ -808,11 +905,11 @@ export function AdminDashboardClient({
                   placeholder=""
                 />
                 <AdminInput
-                  label="Carga horaria semanal"
-                  value={cargaHorariaSemanal}
-                  onChange={setCargaHorariaSemanal}
+                  label="Carga diaria por aula"
+                  value={cargaHorariaDiaria}
+                  onChange={setCargaHorariaDiaria}
                   type="number"
-                  placeholder="20"
+                  placeholder="4"
                 />
                 <AdminInput
                   label="Sala"
@@ -834,6 +931,100 @@ export function AdminDashboardClient({
                   placeholder=""
                   readOnly
                 />
+                <div className="md:col-span-2">
+                  <p className="mb-2 text-sm font-medium text-[#4f4f59]">Dias com aula na semana</p>
+                  <div className="grid gap-3 sm:grid-cols-5">
+                    {WEEKDAY_OPTIONS.map((day) => {
+                      const checked = selectedWeekDays.includes(day.value);
+
+                      return (
+                        <label
+                          key={day.value}
+                          className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition ${
+                            checked
+                              ? 'border-[#163b65] bg-[#edf4fb] text-[#163b65]'
+                              : 'border-[#e5e5ec] bg-white text-[#4f4f59]'
+                          }`}
+                        >
+                          <span className="font-medium">{day.label}</span>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleWeekDay(day.value)}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="md:col-span-2 rounded-[24px] border border-[#dbe4ee] bg-[#f9fbfd] p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-[#163b65]">Acompanhamento da disciplina</p>
+                      <p className="mt-1 text-sm text-[#5d6671]">
+                        A carga do curso continua independente. Aqui o controle considera apenas a disciplina selecionada ao longo do semestre.
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#163b65]">
+                      {previewWeeklyHours}h previstas nesta semana
+                    </div>
+                  </div>
+                  {selectedDisciplina ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-[#1d2430]">
+                        <span className="font-medium">{selectedDisciplina.nome}</span>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs text-[#5d6671]">
+                          Carga da disciplina:{' '}
+                          {selectedDisciplina.cargaHorariaTotal
+                            ? `${selectedDisciplina.cargaHorariaTotal}h`
+                            : 'nao definida'}
+                        </span>
+                      </div>
+                      {disciplinaProgress ? (
+                        <>
+                          <div className="grid gap-3 md:grid-cols-4">
+                            <MetricPill label="Ja agendado" value={`${disciplinaProgress.scheduled}h`} />
+                            <MetricPill label="Restante atual" value={`${disciplinaProgress.remaining}h`} />
+                            <MetricPill label="Nova semana" value={`${previewWeeklyHours}h`} />
+                            <MetricPill
+                              label="Saldo apos salvar"
+                              value={`${previewRemainingHours ?? 0}h`}
+                              emphasis={previewRemainingHours === 0}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <div className="h-2 rounded-full bg-[#e8edf2]">
+                              <div
+                                className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
+                                style={{
+                                  width: `${Math.min(
+                                    Math.round(
+                                      ((disciplinaProgress.scheduled + previewWeeklyHours) /
+                                        disciplinaProgress.total) *
+                                        100
+                                    ),
+                                    100
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <p className="text-xs text-[#6b7280]">
+                              Cada dia marcado consome ate 4h. Exemplo: 3 dias com 4h resultam em 12h abatidas da carga da disciplina naquela semana.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-[#8b5e00]">
+                          Defina a carga horaria da disciplina para liberar o acompanhamento dinamico e o bloqueio por saldo.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-[#6b7280]">
+                      Selecione uma disciplina para acompanhar a distribuicao da carga horaria.
+                    </p>
+                  )}
+                </div>
                 <div className="md:col-span-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-[#4f4f59]">
@@ -956,6 +1147,13 @@ export function AdminDashboardClient({
                     onChange={setNovaDisciplinaNome}
                     placeholder="Analise e Projeto de Computadores"
                   />
+                  <AdminInput
+                    label="Carga horaria da disciplina"
+                    value={novaDisciplinaCarga}
+                    onChange={setNovaDisciplinaCarga}
+                    type="number"
+                    placeholder="72"
+                  />
                   <InlineMessage message={disciplinaMessage} />
                   <SmallSubmit submitting={submittingDisciplina} label="Cadastrar disciplina" />
                 </form>
@@ -964,6 +1162,11 @@ export function AdminDashboardClient({
                     <EditableItem
                       key={disciplina.id}
                       title={disciplina.nome}
+                      subtitle={
+                        disciplina.cargaHorariaTotal
+                          ? `${disciplina.cargaHorariaTotal}h no semestre`
+                          : 'Carga horaria nao definida'
+                      }
                       editing={editingDisciplinaId === disciplina.id}
                       saving={savingDisciplinaId === disciplina.id}
                       deleting={deletingKey === `disciplinas:${disciplina.id}`}
@@ -973,7 +1176,10 @@ export function AdminDashboardClient({
                       onDelete={() => handleDeleteRegistro('disciplinas', disciplina.id, 'Disciplina')}
                     >
                       {editingDisciplinaId === disciplina.id ? (
-                        <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
+                          <AdminInput label="Carga horaria" value={editDisciplinaCarga} onChange={setEditDisciplinaCarga} type="number" placeholder="72" />
+                        </div>
                       ) : null}
                     </EditableItem>
                   ))}
@@ -1280,6 +1486,27 @@ function SmallSubmit({
       <Plus className="h-4 w-4" />
       {label}
     </button>
+  );
+}
+
+function MetricPill({
+  label,
+  value,
+  emphasis = false,
+}: {
+  emphasis?: boolean;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-3 ${
+        emphasis ? 'border-[#c8d5e3] bg-[#eef4f9]' : 'border-[#e5e9ef] bg-white'
+      }`}
+    >
+      <p className="text-[11px] uppercase tracking-[0.08em] text-[#7a7f88]">{label}</p>
+      <p className="mt-1 text-base font-semibold text-[#16161a]">{value}</p>
+    </div>
   );
 }
 

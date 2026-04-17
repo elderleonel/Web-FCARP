@@ -13,6 +13,7 @@ export type Professor = {
 };
 
 export type Disciplina = {
+  cargaHorariaTotal: number | null;
   id: string;
   nome: string;
 };
@@ -25,8 +26,10 @@ export type EventoFeriado = {
 };
 
 export type CronogramaModulo = {
+  cargaHorariaDiaria: number | null;
   id: string;
   disciplinaId: string;
+  diasSemana: number[];
   professorId: string | null;
   dataInicio: string;
   dataFim: string;
@@ -96,9 +99,9 @@ export const fallbackProfessores: Professor[] = [
 ];
 
 export const fallbackDisciplinas: Disciplina[] = [
-  { id: 'disc-apc', nome: 'APC - Analise e Projeto de Computadores' },
-  { id: 'disc-fso', nome: 'FSO - Fundamentos de Sistemas Operacionais' },
-  { id: 'disc-ic', nome: 'IC - Infraestrutura em Computacao' },
+  { id: 'disc-apc', nome: 'APC - Analise e Projeto de Computadores', cargaHorariaTotal: 72 },
+  { id: 'disc-fso', nome: 'FSO - Fundamentos de Sistemas Operacionais', cargaHorariaTotal: 72 },
+  { id: 'disc-ic', nome: 'IC - Infraestrutura em Computacao', cargaHorariaTotal: 72 },
 ];
 
 export const fallbackEventos: EventoFeriado[] = [
@@ -119,7 +122,9 @@ export const fallbackEventos: EventoFeriado[] = [
 export const fallbackModulos: CronogramaModulo[] = [
   {
     id: 'modulo-1',
+    cargaHorariaDiaria: 4,
     disciplinaId: 'disc-apc',
+    diasSemana: [1, 2, 3, 4, 5],
     professorId: 'prof-andre',
     dataInicio: '2026-04-20',
     dataFim: '2026-04-24',
@@ -129,7 +134,9 @@ export const fallbackModulos: CronogramaModulo[] = [
   },
   {
     id: 'modulo-2',
+    cargaHorariaDiaria: 4,
     disciplinaId: 'disc-fso',
+    diasSemana: [1, 2, 3, 4, 5],
     professorId: 'prof-luiza',
     dataInicio: '2026-04-27',
     dataFim: '2026-05-01',
@@ -139,7 +146,9 @@ export const fallbackModulos: CronogramaModulo[] = [
   },
   {
     id: 'modulo-3',
+    cargaHorariaDiaria: 4,
     disciplinaId: 'disc-ic',
+    diasSemana: [1, 2, 3, 4, 5],
     professorId: 'prof-carla',
     dataInicio: '2026-05-18',
     dataFim: '2026-05-22',
@@ -256,6 +265,36 @@ export function buildCronogramaCards(
       (left, right) =>
         new Date(left.dataInicio).getTime() - new Date(right.dataInicio).getTime()
     );
+}
+
+export function getDisciplinaScheduledHours(
+  disciplinaId: string,
+  modulos: CronogramaModulo[]
+) {
+  return modulos
+    .filter((modulo) => modulo.disciplinaId === disciplinaId)
+    .reduce((total, modulo) => total + modulo.cargaHorariaSemanal, 0);
+}
+
+export function getDisciplinaProgress(
+  disciplina: Disciplina | null,
+  modulos: CronogramaModulo[]
+) {
+  if (!disciplina || !disciplina.cargaHorariaTotal) {
+    return null;
+  }
+
+  const total = disciplina.cargaHorariaTotal;
+  const scheduled = getDisciplinaScheduledHours(disciplina.id, modulos);
+  const remaining = Math.max(total - scheduled, 0);
+  const percentual = total > 0 ? Math.min(Math.round((scheduled / total) * 100), 100) : 0;
+
+  return {
+    percentual,
+    remaining,
+    scheduled,
+    total,
+  };
 }
 
 export function getUpcomingModulesForCourse(
