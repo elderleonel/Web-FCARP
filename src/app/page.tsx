@@ -2,16 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Lock,
-  Plus,
-} from 'lucide-react';
+import { ArrowRight, CalendarDays, GraduationCap, ShieldCheck, Users } from 'lucide-react';
 import { loadPlatformData } from '@/lib/unisched-repository';
 import {
   formatDateRange,
@@ -61,11 +52,11 @@ export default function Home() {
     };
   }, []);
 
-  const nextWeek = getNextWeekRange();
   const selectedCourse =
     cursos.find((curso) => curso.id === selectedCourseId) ?? cursos[0] ?? null;
+  const nextWeek = getNextWeekRange();
 
-  const upcomingCards = selectedCourse
+  const previewModules = selectedCourse
     ? getUpcomingModulesForCourse(
         selectedCourse.id,
         cursos,
@@ -73,7 +64,7 @@ export default function Home() {
         professores,
         modulos,
         intercursos
-      )
+      ).slice(0, 2)
     : [];
 
   const selectedProgress = selectedCourse
@@ -81,218 +72,190 @@ export default function Home() {
     : null;
 
   const nextBlockers = eventos.filter((evento) => {
-    const eventTime = new Date(evento.data).getTime();
-    return (
-      eventTime >= nextWeek.start.getTime() && eventTime <= nextWeek.end.getTime()
-    );
+    const time = new Date(evento.data).getTime();
+    return time >= nextWeek.start.getTime() && time <= nextWeek.end.getTime();
   });
 
-  const overviewStats = useMemo(
+  const stats = useMemo(
     () => [
-      {
-        label: 'Cursos',
-        value: String(cursos.length || 0),
-      },
-      {
-        label: 'Modulos',
-        value: String(modulos.length || 0),
-      },
-      {
-        label: 'Professores',
-        value: String(professores.length || 0),
-      },
+      { label: 'Cursos atendidos', value: String(cursos.length || 0) },
+      { label: 'Docentes cadastrados', value: String(professores.length || 0) },
+      { label: 'Modulos registrados', value: String(modulos.length || 0) },
     ],
-    [cursos.length, modulos.length, professores.length]
+    [cursos.length, professores.length, modulos.length]
   );
 
   return (
-    <main className="min-h-screen bg-[#edf1f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-[1240px] rounded-[32px] border border-white/80 bg-[#fcfcfd] shadow-[0_30px_90px_rgba(132,146,166,0.22)]">
-        <BrowserChrome />
-        <section className="relative overflow-hidden rounded-b-[32px]">
-          <GridBackdrop />
-          <Header />
-
-          <div className="relative z-10 px-5 pb-8 pt-8 sm:px-8 lg:px-12 lg:pb-12">
-            <section className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
-              <div className="max-w-[720px]">
-                <span className="inline-flex items-center rounded-full border border-[#ececf1] bg-white/90 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-[#62626c] shadow-[0_6px_18px_rgba(17,17,20,0.04)]">
-                  FCARP DOC
-                </span>
-
-                <h1 className="mt-6 text-[42px] font-semibold leading-[0.96] tracking-[-0.06em] text-[#121216] sm:text-[56px] lg:text-[68px]">
-                  Calendario academico
-                  <br />
-                  modular, limpo e direto
-                </h1>
-
-                <p className="mt-5 max-w-[620px] text-base leading-7 text-[#666672] sm:text-lg">
-                  Consulte a proxima semana letiva, acompanhe a carga horaria do
-                  curso e acesse o painel administrativo sem excesso de informacao na
-                  tela inicial.
+    <main className="min-h-screen bg-[#eef2f5] px-4 py-6 text-[#18212b] sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl rounded-[28px] border border-[#d9e1e8] bg-white shadow-[0_24px_60px_rgba(41,60,84,0.08)]">
+        <header className="border-b border-[#e5ebf0] px-6 py-5 sm:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#17324d] text-white">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#667788]">
+                  FCARP
                 </p>
+                <p className="text-xl font-semibold tracking-[-0.03em] text-[#132033]">
+                  Calendario Academico
+                </p>
+              </div>
+            </div>
 
-                <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row">
-                  <Link
-                    href="/consulta"
-                    className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#163B65,#2C6E91)] px-6 py-3 text-sm font-medium text-white shadow-[0_16px_32px_rgba(22,59,101,0.28)] transition hover:translate-y-[-1px]"
+            <nav className="flex flex-wrap items-center gap-3 text-sm">
+              <Link
+                href="/consulta"
+                className="rounded-full border border-[#d6dee6] px-4 py-2 text-[#223245] transition hover:bg-[#f5f8fb]"
+              >
+                Consulta publica
+              </Link>
+              <Link
+                href="/admin/login"
+                className="rounded-full bg-[#17324d] px-4 py-2 font-medium text-white transition hover:bg-[#21446a]"
+              >
+                Acesso administrativo
+              </Link>
+            </nav>
+          </div>
+        </header>
+
+        <section className="px-6 py-8 sm:px-8 sm:py-10">
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6b7b8d]">
+                Ambiente institucional
+              </p>
+              <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.05em] text-[#112033] sm:text-5xl">
+                Organizacao academica com consulta clara para docentes e estudantes.
+              </h1>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-[#556476]">
+                O sistema centraliza a consulta de modulos, o acompanhamento de carga
+                horaria e o acesso administrativo em uma interface objetiva, adequada
+                ao uso por diferentes cursos da instituicao.
+              </p>
+
+              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                {stats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[20px] border border-[#e1e7ed] bg-[#f9fbfc] px-4 py-4"
                   >
-                    Abrir consulta
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link
-                    href="/admin/login"
-                    className="inline-flex items-center gap-2 rounded-full border border-[#e8e8ee] bg-white px-6 py-3 text-sm font-medium text-[#171717] shadow-[0_8px_20px_rgba(20,20,23,0.05)]"
-                  >
-                    Entrar no admin
-                  </Link>
+                    <p className="text-3xl font-semibold tracking-[-0.04em] text-[#132033]">
+                      {item.value}
+                    </p>
+                    <p className="mt-1 text-sm text-[#617182]">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                <InstitutionalCard
+                  icon={<GraduationCap className="h-5 w-5" />}
+                  title="Consulta por curso"
+                  text="Cada curso pode visualizar seu cronograma, progresso e proximas semanas letivas."
+                />
+                <InstitutionalCard
+                  icon={<Users className="h-5 w-5" />}
+                  title="Uso compartilhado"
+                  text="A interface foi simplificada para leitura rapida por professores, coordenacao e alunos."
+                />
+                <InstitutionalCard
+                  icon={<ShieldCheck className="h-5 w-5" />}
+                  title="Acesso administrativo"
+                  text="O painel interno permanece reservado para cadastro, atualizacao e controle do calendario."
+                />
+              </div>
+            </div>
+
+            <aside className="rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#708092]">
+                    Proxima semana letiva
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#132033]">
+                    Panorama por curso
+                  </h2>
                 </div>
-
-                <div className="mt-8 grid max-w-[520px] grid-cols-3 gap-3">
-                  {overviewStats.map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-[22px] border border-[#ededf2] bg-white/82 px-4 py-4 backdrop-blur"
-                    >
-                      <div className="text-[26px] font-semibold tracking-[-0.05em] text-[#141419]">
-                        {item.value}
-                      </div>
-                      <div className="mt-1 text-sm text-[#6a6a74]">{item.label}</div>
-                    </div>
-                  ))}
+                <div className="rounded-full border border-[#d6dee6] bg-white px-3 py-1 text-xs text-[#5f6f80]">
+                  {nextWeek.start.toLocaleDateString('pt-BR')} a{' '}
+                  {nextWeek.end.toLocaleDateString('pt-BR')}
                 </div>
               </div>
 
-              <aside className="rounded-[30px] border border-[#ececf1] bg-white/82 p-4 shadow-[0_16px_36px_rgba(17,17,20,0.05)] backdrop-blur sm:p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-[#7a7a84]">
-                      Proxima semana
+              <label className="mt-5 block">
+                <span className="mb-2 block text-sm font-medium text-[#324355]">Curso</span>
+                <select
+                  value={selectedCourseId}
+                  onChange={(event) => setSelectedCourseId(event.target.value)}
+                  className="w-full rounded-2xl border border-[#d7e0e8] bg-white px-4 py-3 text-sm text-[#18212b] outline-none transition focus:border-[#17324d]"
+                >
+                  {cursos.map((curso) => (
+                    <option key={curso.id} value={curso.id}>
+                      {curso.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {selectedProgress ? (
+                <div className="mt-5 rounded-[20px] border border-[#dfe6ed] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-[#132033]">Carga horaria</p>
+                      <p className="mt-1 text-sm text-[#607182]">
+                        {selectedProgress.totalAgendado}h de {selectedProgress.totalCurso}h
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-[#17324d]">
+                      {selectedProgress.percentual}%
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#16161a]">
-                      Visao rapida por curso
-                    </h2>
                   </div>
-                  <div className="rounded-full bg-[#f3f5f8] px-3 py-1 text-xs font-medium text-[#4f5662]">
-                    {nextWeek.start.toLocaleDateString('pt-BR')} ate{' '}
-                    {nextWeek.end.toLocaleDateString('pt-BR')}
+                  <div className="mt-3 h-2 rounded-full bg-[#e6edf3]">
+                    <div
+                      className="h-2 rounded-full bg-[#17324d]"
+                      style={{ width: `${selectedProgress.percentual}%` }}
+                    />
                   </div>
                 </div>
+              ) : null}
 
-                <div className="mt-5">
-                  <label className="block">
-                    <span className="mb-2 block text-xs uppercase tracking-[0.18em] text-[#7a7a84]">
-                      Curso
-                    </span>
-                    <select
-                      value={selectedCourseId}
-                      onChange={(event) => setSelectedCourseId(event.target.value)}
-                      className="w-full rounded-2xl border border-[#e5e5ec] bg-[#fbfbfd] px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[#163B65]"
+              <div className="mt-5 space-y-3">
+                {previewModules.length > 0 ? (
+                  previewModules.map((card) => (
+                    <article
+                      key={card.id}
+                      className="rounded-[20px] border border-[#dfe6ed] bg-white px-4 py-4"
                     >
-                      {cursos.map((curso) => (
-                        <option key={curso.id} value={curso.id}>
-                          {curso.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                {selectedProgress ? (
-                  <div className="mt-4 rounded-[24px] bg-[#f6f8fb] px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-[#16161a]">
-                          Carga horaria planejada
-                        </p>
-                        <p className="mt-1 text-sm text-[#6b6b74]">
-                          {selectedProgress.totalAgendado}h de{' '}
-                          {selectedProgress.totalCurso}h
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-[#163B65]">
-                        {selectedProgress.percentual}%
-                      </span>
-                    </div>
-                    <div className="mt-3 h-2 rounded-full bg-[#e1e7ef]">
-                      <div
-                        className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
-                        style={{ width: `${selectedProgress.percentual}%` }}
-                      />
-                    </div>
+                      <p className="text-base font-semibold text-[#132033]">
+                        {card.disciplinaNome}
+                      </p>
+                      <p className="mt-1 text-sm text-[#607182]">
+                        {formatDateRange(card.dataInicio, card.dataFim)}
+                      </p>
+                      <p className="mt-3 text-sm text-[#425365]">
+                        {card.professorNome ?? 'Professor a definir'}
+                      </p>
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-[20px] border border-[#dfe6ed] bg-white px-4 py-4 text-sm text-[#607182]">
+                    Nao ha modulos previstos para a proxima semana no curso selecionado.
                   </div>
-                ) : null}
+                )}
+              </div>
 
-                <div className="mt-4 space-y-3">
-                  {upcomingCards.length > 0 ? (
-                    upcomingCards.slice(0, 2).map((card) => (
-                      <article
-                        key={card.id}
-                        className="rounded-[24px] border border-[#ececf1] bg-white px-4 py-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-base font-semibold tracking-[-0.03em] text-[#16161a]">
-                              {card.disciplinaNome}
-                            </p>
-                            <p className="mt-1 text-sm text-[#6b6b74]">
-                              {formatDateRange(card.dataInicio, card.dataFim)}
-                            </p>
-                          </div>
-                          <div className="inline-flex items-center gap-1 rounded-full bg-[#edf3f8] px-3 py-1 text-xs font-medium text-[#315878]">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            {card.cargaHorariaSemanal}h
-                          </div>
-                        </div>
-
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#f5f7fa] px-3 py-1 text-xs text-[#5b6470]">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-[#163B65]" />
-                          {card.professorNome ?? 'Professor a definir'}
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="rounded-[24px] border border-[#ececf1] bg-white px-4 py-5 text-sm text-[#6b6b74]">
-                      Nenhum modulo previsto para a proxima semana no curso selecionado.
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[24px] bg-[#121922] px-4 py-4 text-white">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/50">
-                      Bloqueios
-                    </p>
-                    <p className="mt-2 text-3xl font-semibold tracking-[-0.05em]">
-                      {nextBlockers.length}
-                    </p>
-                    <p className="mt-2 text-sm text-white/68">
-                      eventos ou feriados na proxima janela letiva
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] bg-[#f7f7fa] px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-[#7a7a84]">
-                      Acesso rapido
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      <Link
-                        href="/consulta"
-                        className="block rounded-2xl border border-[#e6e7ed] bg-white px-4 py-3 text-sm font-medium text-[#171717]"
-                      >
-                        Consulta publica
-                      </Link>
-                      <Link
-                        href="/admin/login"
-                        className="block rounded-2xl border border-[#e6e7ed] bg-white px-4 py-3 text-sm font-medium text-[#171717]"
-                      >
-                        Painel administrativo
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </section>
+              <div className="mt-5 rounded-[20px] border border-[#dfe6ed] bg-white px-4 py-4">
+                <p className="text-sm font-medium text-[#132033]">Bloqueios da semana</p>
+                <p className="mt-1 text-sm text-[#607182]">
+                  {nextBlockers.length > 0
+                    ? `${nextBlockers.length} evento(s) ou feriado(s) registrado(s) para o periodo.`
+                    : 'Nao ha bloqueios registrados para a proxima semana letiva.'}
+                </p>
+              </div>
+            </aside>
           </div>
         </section>
       </div>
@@ -300,68 +263,22 @@ export default function Home() {
   );
 }
 
-function BrowserChrome() {
+function InstitutionalCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
   return (
-    <div className="flex items-center justify-between border-b border-[#ececf1] px-4 py-3 sm:px-6">
-      <div className="flex items-center gap-3">
-        <div className="flex gap-2">
-          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="hidden items-center gap-2 text-[#8e8e98] sm:flex">
-          <ChevronLeft className="h-4 w-4" />
-          <ChevronRight className="h-4 w-4" />
-        </div>
+    <div className="rounded-[20px] border border-[#e1e7ed] bg-white px-4 py-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef3f7] text-[#17324d]">
+        {icon}
       </div>
-
-      <div className="mx-4 hidden flex-1 items-center justify-center md:flex">
-        <div className="flex w-full max-w-[520px] items-center justify-center gap-2 rounded-full border border-[#ececf1] bg-[#f7f7fa] px-4 py-2 text-xs text-[#6f6f78]">
-          <Lock className="h-3.5 w-3.5" />
-          <span>web-fcarp.vercel.app</span>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 text-[#6f6f78]">
-        <Plus className="h-4 w-4" />
-        <div className="h-4 w-4 rounded-[4px] border border-current" />
-      </div>
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 lg:px-12">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#163B65,#2C6E91)] text-white shadow-[0_10px_30px_rgba(22,59,101,0.25)]">
-          <CalendarDays className="h-5 w-5" />
-        </div>
-        <p className="text-[26px] font-semibold tracking-[-0.04em] text-[#121216]">
-          FCARP DOC
-        </p>
-      </div>
-
-      <nav className="hidden items-center gap-10 text-sm text-[#54545c] lg:flex">
-        <Link href="/consulta" className="transition hover:text-black">
-          Consulta
-        </Link>
-        <Link href="/admin/login" className="transition hover:text-black">
-          Admin
-        </Link>
-      </nav>
-    </header>
-  );
-}
-
-function GridBackdrop() {
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(233,233,239,0.92)_1px,transparent_1px),linear-gradient(to_bottom,rgba(233,233,239,0.92)_1px,transparent_1px)] bg-[size:33.333%_100%,100%_33.333%]" />
-      <div className="absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(252,252,253,0.8),transparent)]" />
-      <div className="absolute left-[18%] top-[24%] h-24 w-24 rounded-full bg-[#d9e8f2]/80 blur-2xl" />
-      <div className="absolute right-[10%] top-[16%] h-36 w-36 rounded-full bg-[#dbe1ff]/70 blur-3xl" />
-      <div className="absolute bottom-[8%] left-[48%] h-28 w-28 rounded-full bg-[#e8eef4]/90 blur-2xl" />
+      <p className="mt-4 text-base font-semibold text-[#132033]">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-[#607182]">{text}</p>
     </div>
   );
 }
