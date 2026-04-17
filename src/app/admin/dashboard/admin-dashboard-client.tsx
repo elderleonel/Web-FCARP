@@ -24,7 +24,6 @@ import {
   addDays,
   buildCronogramaCards,
   formatDateRange,
-  getCourseProgress,
   getDisciplinaProgress,
   getNextSuggestedModuleStartDate,
   isDateWithinRange,
@@ -139,13 +138,23 @@ export function AdminDashboardClient({
     [cursos, disciplinas, professores, modulos, intercursos]
   );
 
-  const progressCards = useMemo(
+  const disciplinaProgressCards = useMemo(
     () =>
-      cursos.map((curso) => ({
-        curso,
-        progress: getCourseProgress(curso, modulos, intercursos),
-      })),
-    [cursos, modulos, intercursos]
+      disciplinas
+        .map((disciplina) => ({
+          disciplina,
+          progress: getDisciplinaProgress(disciplina, modulos),
+        }))
+        .filter(
+          (
+            item
+          ): item is {
+            disciplina: Disciplina;
+            progress: NonNullable<ReturnType<typeof getDisciplinaProgress>>;
+          } => Boolean(item.progress)
+        )
+        .sort((left, right) => left.disciplina.nome.localeCompare(right.disciplina.nome, 'pt-BR')),
+    [disciplinas, modulos]
   );
 
   const selectedDisciplina = useMemo(
@@ -1324,30 +1333,39 @@ export function AdminDashboardClient({
 
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
-                Progresso de carga horaria
+                Progresso por disciplina
               </h2>
               <div className="mt-4 space-y-3">
-                {progressCards.map(({ curso, progress }) => (
-                  <div key={curso.id} className="rounded-[22px] bg-white px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-[#16161a]">{curso.nome}</p>
-                        <p className="mt-1 text-xs text-[#7a7a84]">
-                          {progress.totalAgendado}h de {progress.totalCurso}h
-                        </p>
+                {disciplinaProgressCards.length ? (
+                  disciplinaProgressCards.map(({ disciplina, progress }) => (
+                    <div key={disciplina.id} className="rounded-[22px] bg-white px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-[#16161a]">{disciplina.nome}</p>
+                          <p className="mt-1 text-xs text-[#7a7a84]">
+                            {progress.scheduled}h de {progress.total}h
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-[#5b61ff]">
+                          {progress.percentual}%
+                        </span>
                       </div>
-                      <span className="text-sm font-semibold text-[#5b61ff]">
-                        {progress.percentual}%
-                      </span>
+                      <div className="mt-3 h-2 rounded-full bg-[#edf0f3]">
+                        <div
+                          className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
+                          style={{ width: `${progress.percentual}%` }}
+                        />
+                      </div>
+                      <p className="mt-2 text-[11px] text-[#8a8f98]">
+                        Restante: {progress.remaining}h
+                      </p>
                     </div>
-                    <div className="mt-3 h-2 rounded-full bg-[#edf0f3]">
-                      <div
-                        className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
-                        style={{ width: `${progress.percentual}%` }}
-                      />
-                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] bg-white px-4 py-4 text-sm text-[#7a7a84]">
+                    Cadastre a carga horaria nas disciplinas para acompanhar o progresso por componente.
                   </div>
-                ))}
+                )}
               </div>
             </section>
 
