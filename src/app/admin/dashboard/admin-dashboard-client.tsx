@@ -48,8 +48,38 @@ const WEEKDAY_OPTIONS = [
   { label: 'Sex', value: 5 },
 ] as const;
 
-function getModuloWeeklyHours(diasSemana: number[], cargaHorariaDiaria: number) {
-  return diasSemana.length * cargaHorariaDiaria;
+function getSelectedDaysCountInRange(
+  startDate: string,
+  endDate: string,
+  diasSemana: number[]
+) {
+  if (!startDate || !endDate || !diasSemana.length) {
+    return 0;
+  }
+
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return 0;
+  }
+
+  const weekdays = new Set(diasSemana);
+  const cursor = new Date(start);
+  let total = 0;
+
+  while (cursor <= end) {
+    const jsDay = cursor.getDay();
+    const isoDay = jsDay === 0 ? 7 : jsDay;
+
+    if (weekdays.has(isoDay)) {
+      total += 1;
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return total;
 }
 
 export function AdminDashboardClient({
@@ -117,6 +147,7 @@ export function AdminDashboardClient({
   const [disciplinaId, setDisciplinaId] = useState('');
   const [professorId, setProfessorId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
   const [cargaHorariaDiaria, setCargaHorariaDiaria] = useState('4');
   const [sala, setSala] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -163,7 +194,12 @@ export function AdminDashboardClient({
   );
 
   const selectedDailyHours = Number(cargaHorariaDiaria) || 0;
-  const previewWeeklyHours = getModuloWeeklyHours(selectedWeekDays, selectedDailyHours);
+  const selectedDaysCount = getSelectedDaysCountInRange(
+    dataInicio,
+    dataFim,
+    selectedWeekDays
+  );
+  const previewWeeklyHours = selectedDaysCount * selectedDailyHours;
   const disciplinaProgress = useMemo(
     () => getDisciplinaProgress(selectedDisciplina, modulos),
     [selectedDisciplina, modulos]
@@ -700,8 +736,15 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (!dataFim) {
+      setStatusMessage('Informe a data final da etapa da disciplina.');
+      return;
+    }
+
     if (previewWeeklyHours <= 0) {
-      setStatusMessage('A carga semanal calculada precisa ser maior que zero.');
+      setStatusMessage(
+        'A carga calculada precisa ser maior que zero. Revise o intervalo e os dias selecionados.'
+      );
       return;
     }
 
@@ -716,8 +759,12 @@ export function AdminDashboardClient({
     }
 
     const inicio = new Date(`${dataInicio}T00:00:00`);
-    const fim = addDays(inicio, 4);
-    const dataFim = fim.toISOString().slice(0, 10);
+    const fim = new Date(`${dataFim}T00:00:00`);
+
+    if (Number.isNaN(fim.getTime()) || fim < inicio) {
+      setStatusMessage('A data final deve ser igual ou posterior a data inicial.');
+      return;
+    }
 
     const eventConflict = eventos.find((evento) =>
       isDateWithinRange(evento.data, dataInicio, dataFim)
@@ -803,6 +850,7 @@ export function AdminDashboardClient({
     }
 
     setDataInicio(getNextSuggestedModuleStartDate(modulos, eventos, addDays(inicio, 7)));
+    setDataFim('');
     setCargaHorariaDiaria('4');
     setSelectedWeekDays([1, 2, 3, 4, 5]);
     setSala('');
@@ -810,7 +858,7 @@ export function AdminDashboardClient({
     await reloadPlatformData();
     setSubmittingModulo(false);
     setStatusMessage(
-      `Semana criada para ${selectedDisciplina.nome} com ${previewWeeklyHours}h previstas e vinculada aos cursos selecionados.`
+      `Etapa criada para ${selectedDisciplina.nome} com ${previewWeeklyHours}h previstas e vinculada aos cursos selecionados.`
     );
   }
 
@@ -839,6 +887,23 @@ export function AdminDashboardClient({
         ? current.filter((item) => item !== day)
         : [...current, day].sort((left, right) => left - right)
     );
+  }
+
+  function handleDataInicioChange(value: string) {
+    setDataInicio(value);
+
+    if (!value) {
+      setDataFim('');
+      return;
+    }
+
+    const suggestedEnd = addDays(new Date(`${value}T00:00:00`), 4)
+      .toISOString()
+      .slice(0, 10);
+
+    if (!dataFim || new Date(`${dataFim}T00:00:00`) < new Date(`${value}T00:00:00`)) {
+      setDataFim(suggestedEnd);
+    }
   }
 
   return (
@@ -909,7 +974,7 @@ export function AdminDashboardClient({
                 <AdminInput
                   label="Data de inicio"
                   value={dataInicio}
-                  onChange={setDataInicio}
+                  onChange={handleDataInicioChange}
                   type="date"
                   placeholder=""
                 />
@@ -927,18 +992,11 @@ export function AdminDashboardClient({
                   placeholder="Sala 204"
                 />
                 <AdminInput
-                  label="Fim calculado"
-                  value={
-                    dataInicio
-                      ? addDays(new Date(`${dataInicio}T00:00:00`), 4)
-                          .toISOString()
-                          .slice(0, 10)
-                      : ''
-                  }
-                  onChange={() => {}}
+                  label="Data final"
+                  value={dataFim}
+                  onChange={setDataFim}
                   type="date"
                   placeholder=""
-                  readOnly
                 />
                 <div className="md:col-span-2">
                   <p className="mb-2 text-sm font-medium text-[#4f4f59]">Dias com aula na semana</p>
@@ -975,7 +1033,7 @@ export function AdminDashboardClient({
                       </p>
                     </div>
                     <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#163b65]">
-                      {previewWeeklyHours}h previstas nesta semana
+                      {previewWeeklyHours}h previstas no periodo
                     </div>
                   </div>
                   {selectedDisciplina ? (
@@ -994,12 +1052,17 @@ export function AdminDashboardClient({
                           <div className="grid gap-3 md:grid-cols-4">
                             <MetricPill label="Ja agendado" value={`${disciplinaProgress.scheduled}h`} />
                             <MetricPill label="Restante atual" value={`${disciplinaProgress.remaining}h`} />
-                            <MetricPill label="Nova semana" value={`${previewWeeklyHours}h`} />
+                            <MetricPill label="Novo periodo" value={`${previewWeeklyHours}h`} />
                             <MetricPill
                               label="Saldo apos salvar"
                               value={`${previewRemainingHours ?? 0}h`}
                               emphasis={previewRemainingHours === 0}
                             />
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <MetricPill label="Dias letivos no intervalo" value={String(selectedDaysCount)} />
+                            <MetricPill label="Carga diaria" value={`${selectedDailyHours || 0}h`} />
+                            <MetricPill label="Intervalo" value={dataInicio && dataFim ? formatDateRange(dataInicio, dataFim) : '--'} />
                           </div>
                           <div className="space-y-2">
                             <div className="h-2 rounded-full bg-[#e8edf2]">
@@ -1018,7 +1081,7 @@ export function AdminDashboardClient({
                               />
                             </div>
                             <p className="text-xs text-[#6b7280]">
-                              Cada dia marcado consome ate 4h. Exemplo: 3 dias com 4h resultam em 12h abatidas da carga da disciplina naquela semana.
+                              Cada dia marcado dentro do intervalo consome ate 4h. Exemplo: segunda a quarta com 4h por dia resultam em 12h abatidas da carga da disciplina.
                             </p>
                           </div>
                         </>
