@@ -51,8 +51,15 @@ export function AdminDashboardClient({
     'Cadastre bases, bloqueie feriados e monte o cronograma modular com validacao de conflitos.'
   );
   const [loading, setLoading] = useState(true);
-  const [submittingBase, setSubmittingBase] = useState(false);
+  const [submittingCurso, setSubmittingCurso] = useState(false);
+  const [submittingProfessor, setSubmittingProfessor] = useState(false);
+  const [submittingDisciplina, setSubmittingDisciplina] = useState(false);
+  const [submittingEvento, setSubmittingEvento] = useState(false);
   const [submittingModulo, setSubmittingModulo] = useState(false);
+  const [courseMessage, setCourseMessage] = useState('');
+  const [professorMessage, setProfessorMessage] = useState('');
+  const [disciplinaMessage, setDisciplinaMessage] = useState('');
+  const [eventoMessage, setEventoMessage] = useState('');
 
   const [novoCursoNome, setNovoCursoNome] = useState('');
   const [novoCursoCarga, setNovoCursoCarga] = useState('360');
@@ -185,6 +192,14 @@ export function AdminDashboardClient({
     setStatusMessage(platformData.message);
   }
 
+  function formatRequestMessage(message: string) {
+    if (message.toLowerCase().includes('duplicate key')) {
+      return 'Ja existe um registro com esses dados. Revise o cadastro e tente novamente.';
+    }
+
+    return message;
+  }
+
   async function handleCreateCurso(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -193,23 +208,36 @@ export function AdminDashboardClient({
       return;
     }
 
-    setSubmittingBase(true);
+    if (!novoCursoNome.trim()) {
+      setCourseMessage('Informe o nome do curso.');
+      return;
+    }
+
+    if (Number(novoCursoCarga) <= 0) {
+      setCourseMessage('Informe uma carga horaria total valida.');
+      return;
+    }
+
+    setSubmittingCurso(true);
+    setCourseMessage('Salvando curso...');
     const { error } = await supabase.from('cursos').insert({
-      nome: novoCursoNome,
+      nome: novoCursoNome.trim(),
       carga_horaria_total: Number(novoCursoCarga),
       cor_hex: novoCursoCor || null,
     });
 
     if (error) {
-      setSubmittingBase(false);
-      setStatusMessage(error.message);
+      setSubmittingCurso(false);
+      setCourseMessage(formatRequestMessage(error.message));
       return;
     }
 
     setNovoCursoNome('');
     setNovoCursoCarga('360');
+    setNovoCursoCor('#163B65');
     await reloadPlatformData();
-    setSubmittingBase(false);
+    setSubmittingCurso(false);
+    setCourseMessage('Curso cadastrado com sucesso.');
     setStatusMessage('Curso cadastrado com sucesso.');
   }
 
@@ -221,16 +249,22 @@ export function AdminDashboardClient({
       return;
     }
 
-    setSubmittingBase(true);
+    if (!novoProfessorNome.trim()) {
+      setProfessorMessage('Informe o nome do professor.');
+      return;
+    }
+
+    setSubmittingProfessor(true);
+    setProfessorMessage('Salvando professor...');
     const { error } = await supabase.from('professores').insert({
-      nome: novoProfessorNome,
+      nome: novoProfessorNome.trim(),
       cidade_origem: novoProfessorCidade || null,
       especialidade: novoProfessorEspecialidade || null,
     });
 
     if (error) {
-      setSubmittingBase(false);
-      setStatusMessage(error.message);
+      setSubmittingProfessor(false);
+      setProfessorMessage(formatRequestMessage(error.message));
       return;
     }
 
@@ -238,7 +272,8 @@ export function AdminDashboardClient({
     setNovoProfessorCidade('');
     setNovoProfessorEspecialidade('');
     await reloadPlatformData();
-    setSubmittingBase(false);
+    setSubmittingProfessor(false);
+    setProfessorMessage('Professor cadastrado com sucesso.');
     setStatusMessage('Professor cadastrado com sucesso.');
   }
 
@@ -250,20 +285,27 @@ export function AdminDashboardClient({
       return;
     }
 
-    setSubmittingBase(true);
+    if (!novaDisciplinaNome.trim()) {
+      setDisciplinaMessage('Informe o nome da disciplina.');
+      return;
+    }
+
+    setSubmittingDisciplina(true);
+    setDisciplinaMessage('Salvando disciplina...');
     const { error } = await supabase.from('disciplinas').insert({
-      nome: novaDisciplinaNome,
+      nome: novaDisciplinaNome.trim(),
     });
 
     if (error) {
-      setSubmittingBase(false);
-      setStatusMessage(error.message);
+      setSubmittingDisciplina(false);
+      setDisciplinaMessage(formatRequestMessage(error.message));
       return;
     }
 
     setNovaDisciplinaNome('');
     await reloadPlatformData();
-    setSubmittingBase(false);
+    setSubmittingDisciplina(false);
+    setDisciplinaMessage('Disciplina cadastrada com sucesso.');
     setStatusMessage('Disciplina cadastrada com sucesso.');
   }
 
@@ -275,16 +317,27 @@ export function AdminDashboardClient({
       return;
     }
 
-    setSubmittingBase(true);
+    if (!novoEventoNome.trim()) {
+      setEventoMessage('Informe o nome do evento ou feriado.');
+      return;
+    }
+
+    if (!novoEventoData) {
+      setEventoMessage('Informe a data do registro.');
+      return;
+    }
+
+    setSubmittingEvento(true);
+    setEventoMessage('Salvando evento...');
     const { error } = await supabase.from('eventos_feriados').insert({
-      nome: novoEventoNome,
+      nome: novoEventoNome.trim(),
       data: novoEventoData,
       tipo: novoEventoTipo,
     });
 
     if (error) {
-      setSubmittingBase(false);
-      setStatusMessage(error.message);
+      setSubmittingEvento(false);
+      setEventoMessage(formatRequestMessage(error.message));
       return;
     }
 
@@ -292,7 +345,8 @@ export function AdminDashboardClient({
     setNovoEventoData('');
     setNovoEventoTipo('evento');
     await reloadPlatformData();
-    setSubmittingBase(false);
+    setSubmittingEvento(false);
+    setEventoMessage('Evento ou feriado cadastrado com sucesso.');
     setStatusMessage('Evento ou feriado cadastrado com sucesso.');
   }
 
@@ -586,7 +640,7 @@ export function AdminDashboardClient({
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <form onSubmit={handleCreateCurso} className="space-y-3 rounded-[24px] bg-white p-4">
+                <form onSubmit={handleCreateCurso} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo curso</p>
                   <AdminInput
                     label="Nome"
@@ -607,10 +661,23 @@ export function AdminDashboardClient({
                     onChange={setNovoCursoCor}
                     placeholder="#163B65"
                   />
-                  <SmallSubmit submitting={submittingBase} label="Cadastrar curso" />
+                  <InlineMessage message={courseMessage} />
+                  <SmallSubmit submitting={submittingCurso} label="Cadastrar curso" />
                 </form>
 
-                <form onSubmit={handleCreateProfessor} className="space-y-3 rounded-[24px] bg-white p-4">
+                <form onSubmit={handleCreateDisciplina} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Nova disciplina</p>
+                  <AdminInput
+                    label="Nome"
+                    value={novaDisciplinaNome}
+                    onChange={setNovaDisciplinaNome}
+                    placeholder="Analise e Projeto de Computadores"
+                  />
+                  <InlineMessage message={disciplinaMessage} />
+                  <SmallSubmit submitting={submittingDisciplina} label="Cadastrar disciplina" />
+                </form>
+
+                <form onSubmit={handleCreateProfessor} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo professor</p>
                   <AdminInput
                     label="Nome"
@@ -630,21 +697,11 @@ export function AdminDashboardClient({
                     onChange={setNovoProfessorEspecialidade}
                     placeholder="Infraestrutura"
                   />
-                  <SmallSubmit submitting={submittingBase} label="Cadastrar professor" />
+                  <InlineMessage message={professorMessage} />
+                  <SmallSubmit submitting={submittingProfessor} label="Cadastrar professor" />
                 </form>
 
-                <form onSubmit={handleCreateDisciplina} className="space-y-3 rounded-[24px] bg-white p-4">
-                  <p className="text-sm font-semibold text-[#16161a]">Nova disciplina</p>
-                  <AdminInput
-                    label="Nome"
-                    value={novaDisciplinaNome}
-                    onChange={setNovaDisciplinaNome}
-                    placeholder="APC - Analise e Projeto de Computadores"
-                  />
-                  <SmallSubmit submitting={submittingBase} label="Cadastrar disciplina" />
-                </form>
-
-                <form onSubmit={handleCreateEvento} className="space-y-3 rounded-[24px] bg-white p-4">
+                <form onSubmit={handleCreateEvento} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Evento ou feriado</p>
                   <AdminInput
                     label="Nome"
@@ -668,7 +725,8 @@ export function AdminDashboardClient({
                       { label: 'Feriado', value: 'feriado' },
                     ]}
                   />
-                  <SmallSubmit submitting={submittingBase} label="Bloquear data" />
+                  <InlineMessage message={eventoMessage} />
+                  <SmallSubmit submitting={submittingEvento} label="Cadastrar registro" />
                 </form>
               </div>
             </section>
@@ -864,6 +922,18 @@ function SmallSubmit({
       <Plus className="h-4 w-4" />
       {label}
     </button>
+  );
+}
+
+function InlineMessage({ message }: { message: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-[#ececf1] bg-[#f8fafc] px-4 py-3 text-sm text-[#5d5d66]">
+      {message}
+    </div>
   );
 }
 
