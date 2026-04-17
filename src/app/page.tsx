@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, GraduationCap, MapPin, ShieldCheck, Users } from 'lucide-react';
+import { CalendarDays, GraduationCap, MapPin, Users } from 'lucide-react';
 import { loadPlatformData } from '@/lib/unisched-repository';
 import {
   buildCronogramaCards,
@@ -156,80 +156,12 @@ export default function Home() {
         </header>
 
         <section className="px-6 py-8 sm:px-8 sm:py-10">
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6b7b8d]">
-                Ambiente institucional
-              </p>
-              <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.05em] text-[#112033] sm:text-5xl">
-                Organizacao academica com consulta clara para docentes e estudantes.
-              </h1>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-[#556476]">
-                O sistema centraliza a consulta de modulos, o acompanhamento de carga
-                horaria e o acesso administrativo em uma interface objetiva, adequada
-                ao uso por diferentes cursos da instituicao.
-              </p>
-
-              <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                {stats.map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-[20px] border border-[#e1e7ed] bg-[#f9fbfc] px-4 py-4"
-                  >
-                    <p className="text-3xl font-semibold tracking-[-0.04em] text-[#132033]">
-                      {item.value}
-                    </p>
-                    <p className="mt-1 text-sm text-[#617182]">{item.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <InstitutionalCard
-                  icon={<GraduationCap className="h-5 w-5" />}
-                  title="Consulta por curso"
-                  text="Cada curso pode visualizar seu cronograma, progresso e proximas semanas letivas."
-                />
-                <InstitutionalCard
-                  icon={<Users className="h-5 w-5" />}
-                  title="Uso compartilhado"
-                  text="A interface foi simplificada para leitura rapida por professores, coordenacao e alunos."
-                />
-                <InstitutionalCard
-                  icon={<ShieldCheck className="h-5 w-5" />}
-                  title="Acesso administrativo"
-                  text="O painel interno permanece reservado para cadastro, atualizacao e controle do calendario."
-                />
-              </div>
-
-              <div className="mt-8 rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7b8d]">
-                  Sintese executiva
-                </p>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  {institucionalHighlights.map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-[18px] border border-[#e1e7ed] bg-white px-4 py-4"
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#728396]">
-                        {item.label}
-                      </p>
-                      <p className="mt-2 text-sm font-medium text-[#132033]">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
+          <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <aside className="rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#708092]">
-                    Proxima semana letiva
-                  </p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#132033]">
-                    Panorama por curso
+                    Consulta do curso
                   </h2>
                 </div>
                 <div className="rounded-full border border-[#d6dee6] bg-white px-3 py-1 text-xs text-[#5f6f80]">
@@ -309,6 +241,38 @@ export default function Home() {
                 </p>
               </div>
             </aside>
+
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                {stats.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-[20px] border border-[#e1e7ed] bg-[#f9fbfc] px-4 py-4"
+                  >
+                    <p className="text-3xl font-semibold tracking-[-0.04em] text-[#132033]">
+                      {item.value}
+                    </p>
+                    <p className="mt-1 text-sm text-[#617182]">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] p-5">
+                <div className="grid gap-3 md:grid-cols-3">
+                  {institucionalHighlights.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-[18px] border border-[#e1e7ed] bg-white px-4 py-4"
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#728396]">
+                        {item.label}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-[#132033]">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -476,26 +440,6 @@ export default function Home() {
         </section>
       </div>
     </main>
-  );
-}
-
-function InstitutionalCard({
-  icon,
-  title,
-  text,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div className="rounded-[20px] border border-[#e1e7ed] bg-white px-4 py-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef3f7] text-[#17324d]">
-        {icon}
-      </div>
-      <p className="mt-4 text-base font-semibold text-[#132033]">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-[#607182]">{text}</p>
-    </div>
   );
 }
 
