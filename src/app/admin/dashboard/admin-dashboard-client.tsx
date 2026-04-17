@@ -8,11 +8,15 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
+  Edit3,
   GitBranch,
   GraduationCap,
   LogOut,
   Plus,
+  Save,
+  Trash2,
   Users,
+  X,
 } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { loadPlatformData } from '@/lib/unisched-repository';
@@ -60,22 +64,41 @@ export function AdminDashboardClient({
   const [professorMessage, setProfessorMessage] = useState('');
   const [disciplinaMessage, setDisciplinaMessage] = useState('');
   const [eventoMessage, setEventoMessage] = useState('');
+  const [editingCursoId, setEditingCursoId] = useState<string | null>(null);
+  const [editingProfessorId, setEditingProfessorId] = useState<string | null>(null);
+  const [editingDisciplinaId, setEditingDisciplinaId] = useState<string | null>(null);
+  const [editingEventoId, setEditingEventoId] = useState<string | null>(null);
+  const [savingCursoId, setSavingCursoId] = useState<string | null>(null);
+  const [savingProfessorId, setSavingProfessorId] = useState<string | null>(null);
+  const [savingDisciplinaId, setSavingDisciplinaId] = useState<string | null>(null);
+  const [savingEventoId, setSavingEventoId] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const [novoCursoNome, setNovoCursoNome] = useState('');
   const [novoCursoCarga, setNovoCursoCarga] = useState('360');
   const [novoCursoCor, setNovoCursoCor] = useState('#163B65');
+  const [editCursoNome, setEditCursoNome] = useState('');
+  const [editCursoCarga, setEditCursoCarga] = useState('360');
+  const [editCursoCor, setEditCursoCor] = useState('#163B65');
 
   const [novoProfessorNome, setNovoProfessorNome] = useState('');
   const [novoProfessorCidade, setNovoProfessorCidade] = useState('');
   const [novoProfessorEspecialidade, setNovoProfessorEspecialidade] = useState('');
+  const [editProfessorNome, setEditProfessorNome] = useState('');
+  const [editProfessorCidade, setEditProfessorCidade] = useState('');
+  const [editProfessorEspecialidade, setEditProfessorEspecialidade] = useState('');
 
   const [novaDisciplinaNome, setNovaDisciplinaNome] = useState('');
+  const [editDisciplinaNome, setEditDisciplinaNome] = useState('');
 
   const [novoEventoNome, setNovoEventoNome] = useState('');
   const [novoEventoData, setNovoEventoData] = useState('');
   const [novoEventoTipo, setNovoEventoTipo] = useState<'feriado' | 'evento'>(
     'evento'
   );
+  const [editEventoNome, setEditEventoNome] = useState('');
+  const [editEventoData, setEditEventoData] = useState('');
+  const [editEventoTipo, setEditEventoTipo] = useState<'feriado' | 'evento'>('evento');
 
   const [disciplinaId, setDisciplinaId] = useState('');
   const [professorId, setProfessorId] = useState('');
@@ -198,6 +221,242 @@ export function AdminDashboardClient({
     }
 
     return message;
+  }
+
+  function resetEditingStates() {
+    setEditingCursoId(null);
+    setEditingProfessorId(null);
+    setEditingDisciplinaId(null);
+    setEditingEventoId(null);
+  }
+
+  function startCursoEdit(curso: Curso) {
+    resetEditingStates();
+    setEditingCursoId(curso.id);
+    setEditCursoNome(curso.nome);
+    setEditCursoCarga(String(curso.cargaHorariaTotal));
+    setEditCursoCor(curso.corHex ?? '#163B65');
+    setCourseMessage('');
+  }
+
+  function startProfessorEdit(professor: Professor) {
+    resetEditingStates();
+    setEditingProfessorId(professor.id);
+    setEditProfessorNome(professor.nome);
+    setEditProfessorCidade(professor.cidadeOrigem ?? '');
+    setEditProfessorEspecialidade(professor.especialidade ?? '');
+    setProfessorMessage('');
+  }
+
+  function startDisciplinaEdit(disciplina: Disciplina) {
+    resetEditingStates();
+    setEditingDisciplinaId(disciplina.id);
+    setEditDisciplinaNome(disciplina.nome);
+    setDisciplinaMessage('');
+  }
+
+  function startEventoEdit(evento: EventoFeriado) {
+    resetEditingStates();
+    setEditingEventoId(evento.id);
+    setEditEventoNome(evento.nome);
+    setEditEventoData(evento.data);
+    setEditEventoTipo(evento.tipo);
+    setEventoMessage('');
+  }
+
+  async function handleUpdateCurso(cursoId: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!editCursoNome.trim()) {
+      setCourseMessage('Informe o nome do curso.');
+      return;
+    }
+
+    if (Number(editCursoCarga) <= 0) {
+      setCourseMessage('Informe uma carga horaria total valida.');
+      return;
+    }
+
+    setSavingCursoId(cursoId);
+    setCourseMessage('Atualizando curso...');
+
+    const { error } = await supabase
+      .from('cursos')
+      .update({
+        nome: editCursoNome.trim(),
+        carga_horaria_total: Number(editCursoCarga),
+        cor_hex: editCursoCor || null,
+      })
+      .eq('id', cursoId);
+
+    if (error) {
+      setSavingCursoId(null);
+      setCourseMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setSavingCursoId(null);
+    setEditingCursoId(null);
+    setCourseMessage('Curso atualizado com sucesso.');
+    setStatusMessage('Curso atualizado com sucesso.');
+  }
+
+  async function handleUpdateProfessor(professorIdToUpdate: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!editProfessorNome.trim()) {
+      setProfessorMessage('Informe o nome do professor.');
+      return;
+    }
+
+    setSavingProfessorId(professorIdToUpdate);
+    setProfessorMessage('Atualizando professor...');
+
+    const { error } = await supabase
+      .from('professores')
+      .update({
+        nome: editProfessorNome.trim(),
+        cidade_origem: editProfessorCidade || null,
+        especialidade: editProfessorEspecialidade || null,
+      })
+      .eq('id', professorIdToUpdate);
+
+    if (error) {
+      setSavingProfessorId(null);
+      setProfessorMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setSavingProfessorId(null);
+    setEditingProfessorId(null);
+    setProfessorMessage('Professor atualizado com sucesso.');
+    setStatusMessage('Professor atualizado com sucesso.');
+  }
+
+  async function handleUpdateDisciplina(disciplinaIdToUpdate: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!editDisciplinaNome.trim()) {
+      setDisciplinaMessage('Informe o nome da disciplina.');
+      return;
+    }
+
+    setSavingDisciplinaId(disciplinaIdToUpdate);
+    setDisciplinaMessage('Atualizando disciplina...');
+
+    const { error } = await supabase
+      .from('disciplinas')
+      .update({
+        nome: editDisciplinaNome.trim(),
+      })
+      .eq('id', disciplinaIdToUpdate);
+
+    if (error) {
+      setSavingDisciplinaId(null);
+      setDisciplinaMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setSavingDisciplinaId(null);
+    setEditingDisciplinaId(null);
+    setDisciplinaMessage('Disciplina atualizada com sucesso.');
+    setStatusMessage('Disciplina atualizada com sucesso.');
+  }
+
+  async function handleUpdateEvento(eventoIdToUpdate: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!editEventoNome.trim()) {
+      setEventoMessage('Informe o nome do evento ou feriado.');
+      return;
+    }
+
+    if (!editEventoData) {
+      setEventoMessage('Informe a data do registro.');
+      return;
+    }
+
+    setSavingEventoId(eventoIdToUpdate);
+    setEventoMessage('Atualizando evento...');
+
+    const { error } = await supabase
+      .from('eventos_feriados')
+      .update({
+        nome: editEventoNome.trim(),
+        data: editEventoData,
+        tipo: editEventoTipo,
+      })
+      .eq('id', eventoIdToUpdate);
+
+    if (error) {
+      setSavingEventoId(null);
+      setEventoMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setSavingEventoId(null);
+    setEditingEventoId(null);
+    setEventoMessage('Evento ou feriado atualizado com sucesso.');
+    setStatusMessage('Evento ou feriado atualizado com sucesso.');
+  }
+
+  async function handleDeleteRegistro(
+    table:
+      | 'cursos'
+      | 'professores'
+      | 'disciplinas'
+      | 'eventos_feriados',
+    id: string,
+    messagePrefix: string
+  ) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Deseja excluir este ${messagePrefix.toLowerCase()}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingKey(`${table}:${id}`);
+    const { error } = await supabase.from(table).delete().eq('id', id);
+
+    if (error) {
+      setDeletingKey(null);
+      const formattedMessage = formatRequestMessage(error.message);
+      if (table === 'cursos') setCourseMessage(formattedMessage);
+      if (table === 'professores') setProfessorMessage(formattedMessage);
+      if (table === 'disciplinas') setDisciplinaMessage(formattedMessage);
+      if (table === 'eventos_feriados') setEventoMessage(formattedMessage);
+      return;
+    }
+
+    await reloadPlatformData();
+    setDeletingKey(null);
+    resetEditingStates();
+    setStatusMessage(`${messagePrefix} excluido com sucesso.`);
+    if (table === 'cursos') setCourseMessage(`${messagePrefix} excluido com sucesso.`);
+    if (table === 'professores') setProfessorMessage(`${messagePrefix} excluido com sucesso.`);
+    if (table === 'disciplinas') setDisciplinaMessage(`${messagePrefix} excluido com sucesso.`);
+    if (table === 'eventos_feriados') setEventoMessage(`${messagePrefix} excluido com sucesso.`);
   }
 
   async function handleCreateCurso(event: React.FormEvent<HTMLFormElement>) {
@@ -639,7 +898,7 @@ export function AdminDashboardClient({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="mt-5 grid gap-4">
                 <form onSubmit={handleCreateCurso} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo curso</p>
                   <AdminInput
@@ -664,6 +923,30 @@ export function AdminDashboardClient({
                   <InlineMessage message={courseMessage} />
                   <SmallSubmit submitting={submittingCurso} label="Cadastrar curso" />
                 </form>
+                <EditableSection title="Cursos cadastrados" emptyMessage="Nenhum curso cadastrado.">
+                  {cursos.map((curso) => (
+                    <EditableItem
+                      key={curso.id}
+                      title={curso.nome}
+                      subtitle={`${curso.cargaHorariaTotal}h totais`}
+                      editing={editingCursoId === curso.id}
+                      saving={savingCursoId === curso.id}
+                      deleting={deletingKey === `cursos:${curso.id}`}
+                      onEdit={() => startCursoEdit(curso)}
+                      onCancel={() => setEditingCursoId(null)}
+                      onSave={() => handleUpdateCurso(curso.id)}
+                      onDelete={() => handleDeleteRegistro('cursos', curso.id, 'Curso')}
+                    >
+                      {editingCursoId === curso.id ? (
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <AdminInput label="Nome" value={editCursoNome} onChange={setEditCursoNome} placeholder="Nome do curso" />
+                          <AdminInput label="Carga total" value={editCursoCarga} onChange={setEditCursoCarga} type="number" placeholder="360" />
+                          <AdminInput label="Cor" value={editCursoCor} onChange={setEditCursoCor} placeholder="#163B65" />
+                        </div>
+                      ) : null}
+                    </EditableItem>
+                  ))}
+                </EditableSection>
 
                 <form onSubmit={handleCreateDisciplina} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Nova disciplina</p>
@@ -676,6 +959,25 @@ export function AdminDashboardClient({
                   <InlineMessage message={disciplinaMessage} />
                   <SmallSubmit submitting={submittingDisciplina} label="Cadastrar disciplina" />
                 </form>
+                <EditableSection title="Disciplinas cadastradas" emptyMessage="Nenhuma disciplina cadastrada.">
+                  {disciplinas.map((disciplina) => (
+                    <EditableItem
+                      key={disciplina.id}
+                      title={disciplina.nome}
+                      editing={editingDisciplinaId === disciplina.id}
+                      saving={savingDisciplinaId === disciplina.id}
+                      deleting={deletingKey === `disciplinas:${disciplina.id}`}
+                      onEdit={() => startDisciplinaEdit(disciplina)}
+                      onCancel={() => setEditingDisciplinaId(null)}
+                      onSave={() => handleUpdateDisciplina(disciplina.id)}
+                      onDelete={() => handleDeleteRegistro('disciplinas', disciplina.id, 'Disciplina')}
+                    >
+                      {editingDisciplinaId === disciplina.id ? (
+                        <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
+                      ) : null}
+                    </EditableItem>
+                  ))}
+                </EditableSection>
 
                 <form onSubmit={handleCreateProfessor} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo professor</p>
@@ -700,6 +1002,30 @@ export function AdminDashboardClient({
                   <InlineMessage message={professorMessage} />
                   <SmallSubmit submitting={submittingProfessor} label="Cadastrar professor" />
                 </form>
+                <EditableSection title="Professores cadastrados" emptyMessage="Nenhum professor cadastrado.">
+                  {professores.map((professor) => (
+                    <EditableItem
+                      key={professor.id}
+                      title={professor.nome}
+                      subtitle={professor.especialidade ?? 'Sem especialidade informada'}
+                      editing={editingProfessorId === professor.id}
+                      saving={savingProfessorId === professor.id}
+                      deleting={deletingKey === `professores:${professor.id}`}
+                      onEdit={() => startProfessorEdit(professor)}
+                      onCancel={() => setEditingProfessorId(null)}
+                      onSave={() => handleUpdateProfessor(professor.id)}
+                      onDelete={() => handleDeleteRegistro('professores', professor.id, 'Professor')}
+                    >
+                      {editingProfessorId === professor.id ? (
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <AdminInput label="Nome" value={editProfessorNome} onChange={setEditProfessorNome} placeholder="Nome do professor" />
+                          <AdminInput label="Cidade de origem" value={editProfessorCidade} onChange={setEditProfessorCidade} placeholder="Cidade" />
+                          <AdminInput label="Especialidade" value={editProfessorEspecialidade} onChange={setEditProfessorEspecialidade} placeholder="Especialidade" />
+                        </div>
+                      ) : null}
+                    </EditableItem>
+                  ))}
+                </EditableSection>
 
                 <form onSubmit={handleCreateEvento} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Evento ou feriado</p>
@@ -728,6 +1054,38 @@ export function AdminDashboardClient({
                   <InlineMessage message={eventoMessage} />
                   <SmallSubmit submitting={submittingEvento} label="Cadastrar registro" />
                 </form>
+                <EditableSection title="Eventos e feriados cadastrados" emptyMessage="Nenhum evento ou feriado cadastrado.">
+                  {eventos.map((evento) => (
+                    <EditableItem
+                      key={evento.id}
+                      title={evento.nome}
+                      subtitle={`${evento.data} · ${evento.tipo}`}
+                      editing={editingEventoId === evento.id}
+                      saving={savingEventoId === evento.id}
+                      deleting={deletingKey === `eventos_feriados:${evento.id}`}
+                      onEdit={() => startEventoEdit(evento)}
+                      onCancel={() => setEditingEventoId(null)}
+                      onSave={() => handleUpdateEvento(evento.id)}
+                      onDelete={() => handleDeleteRegistro('eventos_feriados', evento.id, 'Evento')}
+                    >
+                      {editingEventoId === evento.id ? (
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <AdminInput label="Nome" value={editEventoNome} onChange={setEditEventoNome} placeholder="Nome do evento" />
+                          <AdminInput label="Data" value={editEventoData} onChange={setEditEventoData} type="date" placeholder="" />
+                          <AdminSelect
+                            label="Tipo"
+                            value={editEventoTipo}
+                            onChange={(value) => setEditEventoTipo(value as 'feriado' | 'evento')}
+                            options={[
+                              { label: 'Evento', value: 'evento' },
+                              { label: 'Feriado', value: 'feriado' },
+                            ]}
+                          />
+                        </div>
+                      ) : null}
+                    </EditableItem>
+                  ))}
+                </EditableSection>
               </div>
             </section>
           </div>
@@ -933,6 +1291,114 @@ function InlineMessage({ message }: { message: string }) {
   return (
     <div className="rounded-2xl border border-[#ececf1] bg-[#f8fafc] px-4 py-3 text-sm text-[#5d5d66]">
       {message}
+    </div>
+  );
+}
+
+function EditableSection({
+  title,
+  emptyMessage,
+  children,
+}: {
+  title: string;
+  emptyMessage: string;
+  children: React.ReactNode;
+}) {
+  const items = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
+
+  return (
+    <section className="rounded-[24px] border border-[#ececf1] bg-white p-4">
+      <p className="text-sm font-semibold text-[#16161a]">{title}</p>
+      <div className="mt-4 space-y-3">
+        {items.length > 0 ? (
+          items
+        ) : (
+          <div className="rounded-2xl border border-[#ececf1] bg-[#f8fafc] px-4 py-4 text-sm text-[#5d5d66]">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function EditableItem({
+  children,
+  deleting = false,
+  editing = false,
+  onCancel,
+  onDelete,
+  onEdit,
+  onSave,
+  saving = false,
+  subtitle,
+  title,
+}: {
+  children?: React.ReactNode;
+  deleting?: boolean;
+  editing?: boolean;
+  onCancel: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onSave: () => void;
+  saving?: boolean;
+  subtitle?: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-[#ececf1] bg-[#f8fafc] px-4 py-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-medium text-[#16161a]">{title}</p>
+          {subtitle ? <p className="mt-1 text-xs text-[#7a7a84]">{subtitle}</p> : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {editing ? (
+            <>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-full bg-[#121216] px-4 py-2 text-sm font-medium text-white disabled:opacity-70"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-full border border-[#d9e1e8] bg-white px-4 py-2 text-sm font-medium text-[#171717]"
+              >
+                <X className="h-4 w-4" />
+                Cancelar
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-2 rounded-full border border-[#d9e1e8] bg-white px-4 py-2 text-sm font-medium text-[#171717]"
+            >
+              <Edit3 className="h-4 w-4" />
+              Editar
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting || saving}
+            className="inline-flex items-center gap-2 rounded-full border border-[#f0d5d5] bg-white px-4 py-2 text-sm font-medium text-[#9c2f2f] disabled:opacity-70"
+          >
+            <Trash2 className="h-4 w-4" />
+            {deleting ? 'Excluindo...' : 'Excluir'}
+          </button>
+        </div>
+      </div>
+
+      {editing && children ? <div className="mt-4">{children}</div> : null}
     </div>
   );
 }
