@@ -3,15 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Lock, Mail } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Mail } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export function AdminLoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [message, setMessage] = useState(
-    'Entre com um usuario autenticado no Supabase Auth.'
+    'Informe seu e-mail para receber o magic link de acesso ao FCARP DOC.'
   );
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,11 +27,13 @@ export function AdminLoginForm() {
     }
 
     setSubmitting(true);
-    setMessage('Validando credenciais...');
+    setMessage('Enviando link de acesso...');
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
-      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/admin/dashboard`,
+      },
     });
 
     if (error) {
@@ -41,7 +42,10 @@ export function AdminLoginForm() {
       return;
     }
 
-    router.push('/admin/dashboard');
+    setSubmitting(false);
+    setMessage(
+      'Magic link enviado. Abra o e-mail e conclua o acesso para entrar no painel administrativo.'
+    );
     router.refresh();
   }
 
@@ -59,10 +63,11 @@ export function AdminLoginForm() {
         <div className="mt-6">
           <p className="text-sm font-medium text-[#5b61ff]">Area Admin</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#121216]">
-            Login com Supabase
+            Acesso administrativo
           </h1>
           <p className="mt-2 text-sm leading-6 text-[#666672]">
-            Essa rota usa Supabase Auth para liberar o dashboard administrativo.
+            O FCARP DOC usa Supabase Auth com magic link para liberar o dashboard
+            administrativo com seguranca e sem expor senha no fluxo principal.
           </p>
         </div>
 
@@ -81,26 +86,12 @@ export function AdminLoginForm() {
             </div>
           </label>
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-[#4f4f59]">Senha</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3">
-              <Lock className="h-4 w-4 text-[#7a7a84]" />
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="w-full bg-transparent text-sm outline-none"
-                placeholder="Digite sua senha"
-              />
-            </div>
-          </label>
-
           <button
             type="submit"
             disabled={submitting}
             className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#5b61ff,#6b36ff)] px-6 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(91,97,255,0.35)] disabled:opacity-70"
           >
-            {submitting ? 'Entrando...' : 'Entrar'}
+            {submitting ? 'Enviando...' : 'Receber magic link'}
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>

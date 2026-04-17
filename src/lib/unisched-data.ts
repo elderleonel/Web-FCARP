@@ -1,166 +1,181 @@
-export type Course = {
+export type Curso = {
   id: string;
-  name: string;
-  area: string;
-  totalHours: number;
+  nome: string;
+  cargaHorariaTotal: number;
+  corHex: string | null;
 };
 
 export type Professor = {
   id: string;
-  name: string;
-  specialty: string;
-  city: string;
-  state: string;
+  nome: string;
+  cidadeOrigem: string | null;
+  especialidade: string | null;
 };
 
-export type Allocation = {
+export type Disciplina = {
   id: string;
-  course_id: string;
-  professor_id: string;
-  module_title: string;
-  start_date: string;
-  end_date: string;
-  start_time: string;
-  end_time: string;
-  weekdays: number;
+  nome: string;
 };
 
-export const fallbackCourses: Course[] = [
+export type EventoFeriado = {
+  id: string;
+  nome: string;
+  data: string;
+  tipo: 'feriado' | 'evento';
+};
+
+export type CronogramaModulo = {
+  id: string;
+  disciplinaId: string;
+  professorId: string | null;
+  dataInicio: string;
+  dataFim: string;
+  cargaHorariaSemanal: number;
+  sala: string | null;
+  observacoes: string | null;
+};
+
+export type Intercurso = {
+  cronogramaModuloId: string;
+  cursoId: string;
+};
+
+export type CronogramaPublicoCard = {
+  id: string;
+  cargaHorariaSemanal: number;
+  cursos: Curso[];
+  dataFim: string;
+  dataInicio: string;
+  disciplinaNome: string;
+  observacoes: string | null;
+  professorCidadeOrigem: string | null;
+  professorNome: string | null;
+  sala: string | null;
+};
+
+export const fallbackCursos: Curso[] = [
   {
-    id: 'course-1',
-    name: 'MBA em Gestao Hospitalar',
-    area: 'Gestao Hospitalar',
-    totalHours: 360,
+    id: 'curso-gti',
+    nome: 'Gestao de Tecnologia da Informacao',
+    cargaHorariaTotal: 360,
+    corHex: '#163B65',
   },
   {
-    id: 'course-2',
-    name: 'Pos em Direito e Inovacao',
-    area: 'Direito Digital',
-    totalHours: 420,
+    id: 'curso-gestao',
+    nome: 'Gestao Publica',
+    cargaHorariaTotal: 360,
+    corHex: '#2C6E91',
   },
   {
-    id: 'course-3',
-    name: 'MBA em Lideranca e Pessoas',
-    area: 'Psicologia Organizacional',
-    totalHours: 400,
+    id: 'curso-contabilidade',
+    nome: 'Controladoria e Financas',
+    cargaHorariaTotal: 420,
+    corHex: '#6F7D8C',
   },
 ];
 
-export const fallbackProfessors: Professor[] = [
+export const fallbackProfessores: Professor[] = [
   {
-    id: 'prof-1',
-    name: 'Dra. Helena Prado',
-    specialty: 'Gestao Hospitalar',
-    city: 'Sao Paulo',
-    state: 'SP',
+    id: 'prof-andre',
+    nome: 'Prof. Andre Campos',
+    cidadeOrigem: 'Cuiaba',
+    especialidade: 'Infraestrutura e sistemas',
   },
   {
-    id: 'prof-2',
-    name: 'Prof. Marcos Ribeiro',
-    specialty: 'Direito Digital',
-    city: 'Cuiaba',
-    state: 'MT',
+    id: 'prof-carla',
+    nome: 'Profa. Carla Mendes',
+    cidadeOrigem: 'Goiania',
+    especialidade: 'Projetos e extensao',
   },
   {
-    id: 'prof-3',
-    name: 'Dra. Luiza Tavares',
-    specialty: 'Psicologia Organizacional',
-    city: 'Goiania',
-    state: 'GO',
+    id: 'prof-luiza',
+    nome: 'Profa. Luiza Torres',
+    cidadeOrigem: 'Sao Paulo',
+    especialidade: 'Seguranca da informacao',
   },
 ];
 
-export const fallbackAllocations: Allocation[] = [
+export const fallbackDisciplinas: Disciplina[] = [
+  { id: 'disc-apc', nome: 'APC - Analise e Projeto de Computadores' },
+  { id: 'disc-fso', nome: 'FSO - Fundamentos de Sistemas Operacionais' },
+  { id: 'disc-ic', nome: 'IC - Infraestrutura em Computacao' },
+];
+
+export const fallbackEventos: EventoFeriado[] = [
   {
-    id: 'alloc-1',
-    course_id: 'course-1',
-    professor_id: 'prof-1',
-    module_title: 'Planejamento Estrategico em Saude',
-    start_date: '2026-04-20',
-    end_date: '2026-04-24',
-    start_time: '18:30',
-    end_time: '22:30',
-    weekdays: 5,
+    id: 'evento-tech',
+    nome: 'FCARP TECH',
+    data: '2026-05-15',
+    tipo: 'evento',
   },
   {
-    id: 'alloc-2',
-    course_id: 'course-2',
-    professor_id: 'prof-2',
-    module_title: 'Protecao de Dados e IA',
-    start_date: '2026-04-20',
-    end_date: '2026-04-24',
-    start_time: '19:00',
-    end_time: '22:00',
-    weekdays: 5,
-  },
-  {
-    id: 'alloc-3',
-    course_id: 'course-3',
-    professor_id: 'prof-3',
-    module_title: 'Cultura, Clima e Performance',
-    start_date: '2026-04-27',
-    end_date: '2026-05-01',
-    start_time: '18:30',
-    end_time: '22:30',
-    weekdays: 5,
+    id: 'feriado-corpus',
+    nome: 'Corpus Christi',
+    data: '2026-06-04',
+    tipo: 'feriado',
   },
 ];
+
+export const fallbackModulos: CronogramaModulo[] = [
+  {
+    id: 'modulo-1',
+    disciplinaId: 'disc-apc',
+    professorId: 'prof-andre',
+    dataInicio: '2026-04-20',
+    dataFim: '2026-04-24',
+    cargaHorariaSemanal: 20,
+    sala: 'Sala 101',
+    observacoes: 'Primeiro bloco do modulo',
+  },
+  {
+    id: 'modulo-2',
+    disciplinaId: 'disc-fso',
+    professorId: 'prof-luiza',
+    dataInicio: '2026-04-27',
+    dataFim: '2026-05-01',
+    cargaHorariaSemanal: 20,
+    sala: 'Sala 205',
+    observacoes: 'Modulo compartilhado entre cursos',
+  },
+  {
+    id: 'modulo-3',
+    disciplinaId: 'disc-ic',
+    professorId: 'prof-carla',
+    dataInicio: '2026-05-18',
+    dataFim: '2026-05-22',
+    cargaHorariaSemanal: 20,
+    sala: 'Laboratorio 2',
+    observacoes: 'Bloco posterior ao evento institucional',
+  },
+];
+
+export const fallbackIntercursos: Intercurso[] = [
+  { cronogramaModuloId: 'modulo-1', cursoId: 'curso-gti' },
+  { cronogramaModuloId: 'modulo-2', cursoId: 'curso-gti' },
+  { cronogramaModuloId: 'modulo-2', cursoId: 'curso-gestao' },
+  { cronogramaModuloId: 'modulo-3', cursoId: 'curso-contabilidade' },
+];
+
+export function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
 
 export function getNextWeekRange(referenceDate = new Date()) {
   const baseDate = new Date(referenceDate);
   const day = baseDate.getDay();
   const distanceToNextMonday = ((8 - day) % 7) || 7;
-  const startDate = new Date(baseDate);
-  startDate.setDate(baseDate.getDate() + distanceToNextMonday);
+  const startDate = addDays(baseDate, distanceToNextMonday);
   startDate.setHours(0, 0, 0, 0);
 
-  const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 4);
+  const endDate = addDays(startDate, 4);
   endDate.setHours(23, 59, 59, 999);
 
   return {
     start: startDate,
     end: endDate,
   };
-}
-
-export function rangesOverlap(
-  leftStart: string,
-  leftEnd: string,
-  rightStart: Date,
-  rightEnd: Date
-) {
-  const leftStartTime = new Date(leftStart).getTime();
-  const leftEndTime = new Date(leftEnd).getTime();
-  const rightStartTime = rightStart.getTime();
-  const rightEndTime = rightEnd.getTime();
-
-  return leftStartTime <= rightEndTime && rightStartTime <= leftEndTime;
-}
-
-export function getUpcomingAllocationForCourse(
-  courseId: string,
-  allocations: Allocation[],
-  referenceDate = new Date()
-) {
-  const nextWeek = getNextWeekRange(referenceDate);
-
-  return (
-    allocations
-      .filter((allocation) => allocation.course_id === courseId)
-      .filter((allocation) =>
-        rangesOverlap(
-          allocation.start_date,
-          allocation.end_date,
-          nextWeek.start,
-          nextWeek.end
-        )
-      )
-      .sort(
-        (left, right) =>
-          new Date(left.start_date).getTime() - new Date(right.start_date).getTime()
-      )[0] ?? null
-  );
 }
 
 export function formatDateRange(startDate: string, endDate: string) {
@@ -172,4 +187,153 @@ export function formatDateRange(startDate: string, endDate: string) {
   return `${formatter.format(new Date(startDate))} - ${formatter.format(
     new Date(endDate)
   )}`;
+}
+
+export function rangesOverlap(
+  leftStart: string,
+  leftEnd: string,
+  rightStart: string,
+  rightEnd: string
+) {
+  const leftStartTime = new Date(leftStart).getTime();
+  const leftEndTime = new Date(leftEnd).getTime();
+  const rightStartTime = new Date(rightStart).getTime();
+  const rightEndTime = new Date(rightEnd).getTime();
+
+  return leftStartTime <= rightEndTime && rightStartTime <= leftEndTime;
+}
+
+export function isDateWithinRange(
+  date: string,
+  startDate: string,
+  endDate: string
+) {
+  const target = new Date(date).getTime();
+  return (
+    target >= new Date(startDate).getTime() && target <= new Date(endDate).getTime()
+  );
+}
+
+export function buildCronogramaCards(
+  cursoId: string,
+  cursos: Curso[],
+  disciplinas: Disciplina[],
+  professores: Professor[],
+  modulos: CronogramaModulo[],
+  intercursos: Intercurso[]
+) {
+  return modulos
+    .filter((modulo) =>
+      intercursos.some(
+        (intercurso) =>
+          intercurso.cronogramaModuloId === modulo.id && intercurso.cursoId === cursoId
+      )
+    )
+    .map((modulo) => {
+      const disciplina =
+        disciplinas.find((item) => item.id === modulo.disciplinaId) ?? null;
+      const professor =
+        professores.find((item) => item.id === modulo.professorId) ?? null;
+      const cursosParticipantes = intercursos
+        .filter((item) => item.cronogramaModuloId === modulo.id)
+        .map((item) => cursos.find((curso) => curso.id === item.cursoId) ?? null)
+        .filter((curso): curso is Curso => Boolean(curso));
+
+      return {
+        id: modulo.id,
+        cargaHorariaSemanal: modulo.cargaHorariaSemanal,
+        cursos: cursosParticipantes,
+        dataFim: modulo.dataFim,
+        dataInicio: modulo.dataInicio,
+        disciplinaNome: disciplina?.nome ?? 'Disciplina nao identificada',
+        observacoes: modulo.observacoes,
+        professorCidadeOrigem: professor?.cidadeOrigem ?? null,
+        professorNome: professor?.nome ?? null,
+        sala: modulo.sala,
+      } satisfies CronogramaPublicoCard;
+    })
+    .sort(
+      (left, right) =>
+        new Date(left.dataInicio).getTime() - new Date(right.dataInicio).getTime()
+    );
+}
+
+export function getUpcomingModulesForCourse(
+  cursoId: string,
+  cursos: Curso[],
+  disciplinas: Disciplina[],
+  professores: Professor[],
+  modulos: CronogramaModulo[],
+  intercursos: Intercurso[],
+  referenceDate = new Date()
+) {
+  const nextWeek = getNextWeekRange(referenceDate);
+
+  return buildCronogramaCards(
+    cursoId,
+    cursos,
+    disciplinas,
+    professores,
+    modulos,
+    intercursos
+  ).filter((item) =>
+    rangesOverlap(
+      item.dataInicio,
+      item.dataFim,
+      nextWeek.start.toISOString(),
+      nextWeek.end.toISOString()
+    )
+  );
+}
+
+export function getCourseProgress(
+  curso: Curso,
+  modulos: CronogramaModulo[],
+  intercursos: Intercurso[]
+) {
+  const totalAgendado = intercursos
+    .filter((item) => item.cursoId === curso.id)
+    .reduce((sum, item) => {
+      const modulo = modulos.find((entry) => entry.id === item.cronogramaModuloId);
+      return sum + (modulo?.cargaHorariaSemanal ?? 0);
+    }, 0);
+
+  const percentual = Math.min(
+    100,
+    Math.round((totalAgendado / curso.cargaHorariaTotal) * 100)
+  );
+
+  return {
+    percentual,
+    totalAgendado,
+    totalCurso: curso.cargaHorariaTotal,
+  };
+}
+
+export function getNextSuggestedModuleStartDate(
+  modulos: CronogramaModulo[],
+  eventos: EventoFeriado[],
+  referenceDate = new Date()
+) {
+  const baseDate = getNextWeekRange(referenceDate).start;
+
+  for (let weekOffset = 0; weekOffset < 52; weekOffset += 1) {
+    const startDate = addDays(baseDate, weekOffset * 7);
+    const endDate = addDays(startDate, 4);
+    const isoStart = startDate.toISOString().slice(0, 10);
+    const isoEnd = endDate.toISOString().slice(0, 10);
+
+    const hasEventConflict = eventos.some((evento) =>
+      isDateWithinRange(evento.data, isoStart, isoEnd)
+    );
+    const hasModuleConflict = modulos.some((modulo) =>
+      rangesOverlap(modulo.dataInicio, modulo.dataFim, isoStart, isoEnd)
+    );
+
+    if (!hasEventConflict && !hasModuleConflict) {
+      return isoStart;
+    }
+  }
+
+  return baseDate.toISOString().slice(0, 10);
 }

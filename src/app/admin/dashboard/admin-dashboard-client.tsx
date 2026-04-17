@@ -4,27 +4,33 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
-  FileUp,
-  FolderLock,
+  Check,
+  GitBranch,
+  GraduationCap,
   LogOut,
   Plus,
-  Shield,
   Users,
 } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { loadPublicScheduleData } from '@/lib/unisched-repository';
-import type { Course } from '@/lib/unisched-data';
-
-const STORAGE_BUCKET = 'private-files';
-
-type StoredFile = {
-  createdAt: string | null;
-  name: string;
-  path: string;
-  size: number | null;
-};
+import { loadPlatformData } from '@/lib/unisched-repository';
+import {
+  addDays,
+  buildCronogramaCards,
+  formatDateRange,
+  getCourseProgress,
+  getNextSuggestedModuleStartDate,
+  isDateWithinRange,
+  rangesOverlap,
+  type CronogramaModulo,
+  type Curso,
+  type Disciplina,
+  type EventoFeriado,
+  type Intercurso,
+  type Professor,
+} from '@/lib/unisched-data';
 
 type AdminDashboardClientProps = {
   userEmail: string;
@@ -34,55 +40,67 @@ export function AdminDashboardClient({
   userEmail,
 }: AdminDashboardClientProps) {
   const router = useRouter();
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [files, setFiles] = useState<StoredFile[]>([]);
-  const [statusMessage, setStatusMessage] = useState(
-    'Cadastre cursos no banco e envie arquivos para o bucket protegido do Supabase.'
-  );
+  const [cursos, setCursos] = useState<Curso[]>([]);
+  const [professores, setProfessores] = useState<Professor[]>([]);
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
+  const [eventos, setEventos] = useState<EventoFeriado[]>([]);
+  const [modulos, setModulos] = useState<CronogramaModulo[]>([]);
+  const [intercursos, setIntercursos] = useState<Intercurso[]>([]);
   const [authMessage, setAuthMessage] = useState(`Sessao ativa para ${userEmail}.`);
+  const [statusMessage, setStatusMessage] = useState(
+    'Cadastre bases, bloqueie feriados e monte o cronograma modular com validacao de conflitos.'
+  );
   const [loading, setLoading] = useState(true);
-  const [submittingCourse, setSubmittingCourse] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [courseName, setCourseName] = useState('');
-  const [courseArea, setCourseArea] = useState('');
-  const [courseHours, setCourseHours] = useState('360');
+  const [submittingBase, setSubmittingBase] = useState(false);
+  const [submittingModulo, setSubmittingModulo] = useState(false);
 
-  const totalStorageBytes = useMemo(
-    () => files.reduce((sum, file) => sum + (file.size ?? 0), 0),
-    [files]
+  const [novoCursoNome, setNovoCursoNome] = useState('');
+  const [novoCursoCarga, setNovoCursoCarga] = useState('360');
+  const [novoCursoCor, setNovoCursoCor] = useState('#163B65');
+
+  const [novoProfessorNome, setNovoProfessorNome] = useState('');
+  const [novoProfessorCidade, setNovoProfessorCidade] = useState('');
+  const [novoProfessorEspecialidade, setNovoProfessorEspecialidade] = useState('');
+
+  const [novaDisciplinaNome, setNovaDisciplinaNome] = useState('');
+
+  const [novoEventoNome, setNovoEventoNome] = useState('');
+  const [novoEventoData, setNovoEventoData] = useState('');
+  const [novoEventoTipo, setNovoEventoTipo] = useState<'feriado' | 'evento'>(
+    'evento'
   );
 
-  async function refreshFiles(userId: string) {
-    const supabase = getSupabaseBrowserClient();
+  const [disciplinaId, setDisciplinaId] = useState('');
+  const [professorId, setProfessorId] = useState('');
+  const [dataInicio, setDataInicio] = useState('');
+  const [cargaHorariaSemanal, setCargaHorariaSemanal] = useState('20');
+  const [sala, setSala] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
 
-    if (!supabase) {
-      return;
-    }
+  const cronogramaCards = useMemo(
+    () =>
+      cursos.flatMap((curso) =>
+        buildCronogramaCards(
+          curso.id,
+          cursos,
+          disciplinas,
+          professores,
+          modulos,
+          intercursos
+        ).slice(0, 3)
+      ),
+    [cursos, disciplinas, professores, modulos, intercursos]
+  );
 
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .list(userId, {
-        limit: 25,
-        sortBy: { column: 'created_at', order: 'desc' },
-      });
-
-    if (error) {
-      setStatusMessage(
-        'Login funcionando, mas o bucket private-files ainda nao esta pronto ou falta politica de acesso.'
-      );
-      setFiles([]);
-      return;
-    }
-
-    setFiles(
-      (data ?? []).map((file) => ({
-        createdAt: file.created_at ?? null,
-        name: file.name,
-        path: `${userId}/${file.name}`,
-        size: file.metadata?.size ?? null,
-      }))
-    );
-  }
+  const progressCards = useMemo(
+    () =>
+      cursos.map((curso) => ({
+        curso,
+        progress: getCourseProgress(curso, modulos, intercursos),
+      })),
+    [cursos, modulos, intercursos]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -102,10 +120,10 @@ export function AdminDashboardClient({
         return;
       }
 
-      const [
-        { data: userResult, error: userError },
-        publicData,
-      ] = await Promise.all([supabase.auth.getUser(), loadPublicScheduleData()]);
+      const [{ data: userResult, error: userError }, platformData] = await Promise.all([
+        supabase.auth.getUser(),
+        loadPlatformData(),
+      ]);
 
       if (!isMounted) {
         return;
@@ -117,14 +135,36 @@ export function AdminDashboardClient({
       }
 
       setAuthMessage(`Sessao ativa para ${userResult.user.email ?? userEmail}.`);
-      setCourses(publicData.courses);
-      setStatusMessage(publicData.message);
+      setCursos(platformData.cursos);
+      setProfessores(platformData.professores);
+      setDisciplinas(platformData.disciplinas);
+      setEventos(platformData.eventosFeriados);
+      setModulos(platformData.cronogramaModulos);
+      setIntercursos(platformData.intercursos);
+      setStatusMessage(platformData.message);
 
-      await refreshFiles(userResult.user.id);
-
-      if (isMounted) {
-        setLoading(false);
+      if (!selectedCourseIds.length && platformData.cursos.length > 0) {
+        setSelectedCourseIds([platformData.cursos[0].id]);
       }
+
+      if (!disciplinaId && platformData.disciplinas.length > 0) {
+        setDisciplinaId(platformData.disciplinas[0].id);
+      }
+
+      if (!professorId && platformData.professores.length > 0) {
+        setProfessorId(platformData.professores[0].id);
+      }
+
+      if (!dataInicio && platformData.cursos.length > 0) {
+        setDataInicio(
+          getNextSuggestedModuleStartDate(
+            platformData.cronogramaModulos,
+            platformData.eventosFeriados
+          )
+        );
+      }
+
+      setLoading(false);
     }
 
     void bootstrapDashboard();
@@ -132,109 +172,235 @@ export function AdminDashboardClient({
     return () => {
       isMounted = false;
     };
-  }, [router, userEmail]);
+  }, [router, userEmail, dataInicio, disciplinaId, professorId, selectedCourseIds.length]);
 
-  async function handleCreateCourse(event: React.FormEvent<HTMLFormElement>) {
+  async function reloadPlatformData() {
+    const platformData = await loadPlatformData();
+    setCursos(platformData.cursos);
+    setProfessores(platformData.professores);
+    setDisciplinas(platformData.disciplinas);
+    setEventos(platformData.eventosFeriados);
+    setModulos(platformData.cronogramaModulos);
+    setIntercursos(platformData.intercursos);
+    setStatusMessage(platformData.message);
+  }
+
+  async function handleCreateCurso(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const supabase = getSupabaseBrowserClient();
-
     if (!supabase) {
-      setStatusMessage('Supabase nao configurado no ambiente.');
       return;
     }
 
-    setSubmittingCourse(true);
-    setStatusMessage('Salvando curso...');
-
-    const { data, error } = await supabase
-      .from('courses')
-      .insert({
-        name: courseName,
-        area: courseArea,
-        totalHours: Number(courseHours),
-      })
-      .select('id, name, area, totalHours')
-      .single();
+    setSubmittingBase(true);
+    const { error } = await supabase.from('cursos').insert({
+      nome: novoCursoNome,
+      carga_horaria_total: Number(novoCursoCarga),
+      cor_hex: novoCursoCor || null,
+    });
 
     if (error) {
-      setSubmittingCourse(false);
+      setSubmittingBase(false);
       setStatusMessage(error.message);
       return;
     }
 
-    setCourses((current) => [...current, data as Course]);
-    setCourseName('');
-    setCourseArea('');
-    setCourseHours('360');
-    setSubmittingCourse(false);
-    setStatusMessage('Curso salvo no Supabase com sucesso.');
+    setNovoCursoNome('');
+    setNovoCursoCarga('360');
+    await reloadPlatformData();
+    setSubmittingBase(false);
+    setStatusMessage('Curso cadastrado com sucesso.');
   }
 
-  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+  async function handleCreateProfessor(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
     const supabase = getSupabaseBrowserClient();
-
     if (!supabase) {
-      setStatusMessage('Supabase nao configurado no ambiente.');
       return;
     }
 
-    setUploadingFile(true);
-    setStatusMessage('Enviando arquivo para o Storage...');
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setUploadingFile(false);
-      setStatusMessage('Sua sessao expirou. Entre novamente.');
-      router.replace('/admin/login');
-      return;
-    }
-
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-    const filePath = `${user.id}/${Date.now()}-${sanitizedName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
-
-    if (uploadError) {
-      setUploadingFile(false);
-      setStatusMessage(uploadError.message);
-      event.target.value = '';
-      return;
-    }
-
-    const { error: metadataError } = await supabase.from('file_uploads').insert({
-      bucket: STORAGE_BUCKET,
-      content_type: file.type || null,
-      original_name: file.name,
-      path: filePath,
-      size_bytes: file.size,
-      user_id: user.id,
+    setSubmittingBase(true);
+    const { error } = await supabase.from('professores').insert({
+      nome: novoProfessorNome,
+      cidade_origem: novoProfessorCidade || null,
+      especialidade: novoProfessorEspecialidade || null,
     });
 
-    await refreshFiles(user.id);
+    if (error) {
+      setSubmittingBase(false);
+      setStatusMessage(error.message);
+      return;
+    }
 
-    setUploadingFile(false);
-    setStatusMessage(
-      metadataError
-        ? 'Arquivo enviado ao Storage, mas a tabela file_uploads ainda nao existe ou nao aceita a gravacao.'
-        : 'Arquivo protegido enviado ao Supabase com metadados salvos.'
+    setNovoProfessorNome('');
+    setNovoProfessorCidade('');
+    setNovoProfessorEspecialidade('');
+    await reloadPlatformData();
+    setSubmittingBase(false);
+    setStatusMessage('Professor cadastrado com sucesso.');
+  }
+
+  async function handleCreateDisciplina(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    setSubmittingBase(true);
+    const { error } = await supabase.from('disciplinas').insert({
+      nome: novaDisciplinaNome,
+    });
+
+    if (error) {
+      setSubmittingBase(false);
+      setStatusMessage(error.message);
+      return;
+    }
+
+    setNovaDisciplinaNome('');
+    await reloadPlatformData();
+    setSubmittingBase(false);
+    setStatusMessage('Disciplina cadastrada com sucesso.');
+  }
+
+  async function handleCreateEvento(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    setSubmittingBase(true);
+    const { error } = await supabase.from('eventos_feriados').insert({
+      nome: novoEventoNome,
+      data: novoEventoData,
+      tipo: novoEventoTipo,
+    });
+
+    if (error) {
+      setSubmittingBase(false);
+      setStatusMessage(error.message);
+      return;
+    }
+
+    setNovoEventoNome('');
+    setNovoEventoData('');
+    setNovoEventoTipo('evento');
+    await reloadPlatformData();
+    setSubmittingBase(false);
+    setStatusMessage('Evento ou feriado cadastrado com sucesso.');
+  }
+
+  async function handleCreateModulo(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!selectedCourseIds.length) {
+      setStatusMessage('Selecione pelo menos um curso participante.');
+      return;
+    }
+
+    const inicio = new Date(`${dataInicio}T00:00:00`);
+    const fim = addDays(inicio, 4);
+    const dataFim = fim.toISOString().slice(0, 10);
+
+    const eventConflict = eventos.find((evento) =>
+      isDateWithinRange(evento.data, dataInicio, dataFim)
     );
-    event.target.value = '';
+
+    if (eventConflict) {
+      setStatusMessage(
+        `Conflito detectado: ${eventConflict.nome} bloqueia a semana ${formatDateRange(
+          dataInicio,
+          dataFim
+        )}.`
+      );
+      return;
+    }
+
+    const professorConflict = modulos.find(
+      (modulo) =>
+        modulo.professorId === professorId &&
+        rangesOverlap(modulo.dataInicio, modulo.dataFim, dataInicio, dataFim)
+    );
+
+    if (professorConflict) {
+      setStatusMessage(
+        'O professor selecionado ja possui um modulo cadastrado nessa semana.'
+      );
+      return;
+    }
+
+    const relatedModuloIds = new Set(
+      intercursos
+        .filter((item) => selectedCourseIds.includes(item.cursoId))
+        .map((item) => item.cronogramaModuloId)
+    );
+
+    const courseConflict = modulos.find(
+      (modulo) =>
+        relatedModuloIds.has(modulo.id) &&
+        rangesOverlap(modulo.dataInicio, modulo.dataFim, dataInicio, dataFim)
+    );
+
+    if (courseConflict) {
+      setStatusMessage(
+        'Um dos cursos participantes ja tem aula cadastrada nessa semana. Escolha outra data.'
+      );
+      return;
+    }
+
+    setSubmittingModulo(true);
+
+    const { data: moduloInserido, error: moduloError } = await supabase
+      .from('cronograma_modulos')
+      .insert({
+        disciplina_id: disciplinaId,
+        professor_id: professorId || null,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        carga_horaria_semanal: Number(cargaHorariaSemanal),
+        sala: sala || null,
+        observacoes: observacoes || null,
+      })
+      .select('id')
+      .single();
+
+    if (moduloError || !moduloInserido) {
+      setSubmittingModulo(false);
+      setStatusMessage(moduloError?.message ?? 'Nao foi possivel criar o modulo.');
+      return;
+    }
+
+    const { error: intercursoError } = await supabase.from('intercursos').insert(
+      selectedCourseIds.map((cursoId) => ({
+        cronograma_modulo_id: moduloInserido.id,
+        curso_id: cursoId,
+      }))
+    );
+
+    if (intercursoError) {
+      setSubmittingModulo(false);
+      setStatusMessage(intercursoError.message);
+      return;
+    }
+
+    setDataInicio(getNextSuggestedModuleStartDate(modulos, eventos, addDays(inicio, 7)));
+    setCargaHorariaSemanal('20');
+    setSala('');
+    setObservacoes('');
+    await reloadPlatformData();
+    setSubmittingModulo(false);
+    setStatusMessage('Modulo criado com validacao de conflitos e vinculado aos cursos selecionados.');
   }
 
   async function handleLogout() {
@@ -248,14 +414,22 @@ export function AdminDashboardClient({
     router.refresh();
   }
 
+  function toggleCourse(cursoId: string) {
+    setSelectedCourseIds((current) =>
+      current.includes(cursoId)
+        ? current.filter((item) => item !== cursoId)
+        : [...current, cursoId]
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#eef2f6] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl rounded-[32px] border border-white/70 bg-[#fcfcfd] p-5 shadow-[0_30px_90px_rgba(132,146,166,0.18)] sm:p-8">
+      <div className="mx-auto max-w-7xl rounded-[32px] border border-white/70 bg-[#fcfcfd] p-5 shadow-[0_30px_90px_rgba(132,146,166,0.18)] sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-[#5b61ff]">Dashboard admin</p>
+            <p className="text-sm font-medium text-[#5b61ff]">FCARP DOC</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[#121216]">
-              Painel com Auth, banco e Storage
+              Gestao de calendario modular
             </h1>
             <p className="mt-2 text-sm leading-6 text-[#666672]">{authMessage}</p>
           </div>
@@ -279,172 +453,336 @@ export function AdminDashboardClient({
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+        <div className="mt-6 rounded-2xl border border-[#ececf1] bg-white px-4 py-3 text-sm text-[#5d5d66]">
+          {statusMessage}
+        </div>
+
+        <div className="mt-8 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-4">
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef0ff] text-[#5b61ff]">
-                  <Shield className="h-5 w-5" />
+                  <CalendarDays className="h-5 w-5" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
-                    Novo curso
+                    Construtor de cronograma
                   </h2>
                   <p className="text-sm text-[#6b6b74]">
-                    A rota protegida grava dados direto na tabela `courses`.
+                    Crie modulos semanais com validacao de feriados, eventos e conflitos de professor.
                   </p>
                 </div>
               </div>
 
-              <form onSubmit={handleCreateCourse} className="mt-5 space-y-4">
-                <AdminInput
-                  label="Nome do curso"
-                  value={courseName}
-                  onChange={setCourseName}
-                  placeholder="MBA em Gestao Publica"
+              <form onSubmit={handleCreateModulo} className="mt-5 grid gap-4 md:grid-cols-2">
+                <AdminSelect
+                  label="Disciplina"
+                  value={disciplinaId}
+                  onChange={setDisciplinaId}
+                  options={disciplinas.map((item) => ({ label: item.nome, value: item.id }))}
+                />
+                <AdminSelect
+                  label="Professor"
+                  value={professorId}
+                  onChange={setProfessorId}
+                  options={professores.map((item) => ({ label: item.nome, value: item.id }))}
                 />
                 <AdminInput
-                  label="Area"
-                  value={courseArea}
-                  onChange={setCourseArea}
-                  placeholder="Gestao"
+                  label="Data de inicio"
+                  value={dataInicio}
+                  onChange={setDataInicio}
+                  type="date"
+                  placeholder=""
                 />
                 <AdminInput
-                  label="Carga horaria"
-                  value={courseHours}
-                  onChange={setCourseHours}
+                  label="Carga horaria semanal"
+                  value={cargaHorariaSemanal}
+                  onChange={setCargaHorariaSemanal}
                   type="number"
-                  placeholder="360"
+                  placeholder="20"
                 />
+                <AdminInput
+                  label="Sala"
+                  value={sala}
+                  onChange={setSala}
+                  placeholder="Sala 204"
+                />
+                <AdminInput
+                  label="Fim calculado"
+                  value={
+                    dataInicio
+                      ? addDays(new Date(`${dataInicio}T00:00:00`), 4)
+                          .toISOString()
+                          .slice(0, 10)
+                      : ''
+                  }
+                  onChange={() => {}}
+                  type="date"
+                  placeholder=""
+                  readOnly
+                />
+                <div className="md:col-span-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-[#4f4f59]">
+                      Observacoes
+                    </span>
+                    <textarea
+                      value={observacoes}
+                      onChange={(event) => setObservacoes(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[#5b61ff]"
+                      placeholder="Atividade de extensao, avaliacao, observacao de viagem..."
+                    />
+                  </label>
+                </div>
 
-                <button
-                  type="submit"
-                  disabled={submittingCourse || loading}
-                  className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#5b61ff,#6b36ff)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(91,97,255,0.35)] disabled:opacity-70"
-                >
-                  <Plus className="h-4 w-4" />
-                  {submittingCourse ? 'Salvando...' : 'Salvar curso'}
-                </button>
+                <div className="md:col-span-2">
+                  <p className="mb-2 text-sm font-medium text-[#4f4f59]">
+                    Cursos participantes
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {cursos.map((curso) => (
+                      <label
+                        key={curso.id}
+                        className="flex items-center gap-3 rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCourseIds.includes(curso.id)}
+                          onChange={() => toggleCourse(curso.id)}
+                        />
+                        <span className="text-sm text-[#171717]">{curso.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={submittingModulo || loading}
+                    className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#5b61ff,#6b36ff)] px-5 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(91,97,255,0.35)] disabled:opacity-70"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {submittingModulo ? 'Salvando modulo...' : 'Salvar modulo semanal'}
+                  </button>
+                </div>
               </form>
             </section>
 
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ecfff2] text-[#147a46]">
-                  <FileUp className="h-5 w-5" />
+                  <GraduationCap className="h-5 w-5" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
-                    Upload protegido
+                    Cadastros base
                   </h2>
                   <p className="text-sm text-[#6b6b74]">
-                    Envie pequenos arquivos ao bucket privado `{STORAGE_BUCKET}`.
+                    Cursos, professores, disciplinas e bloqueios alimentam o construtor de calendario.
                   </p>
                 </div>
               </div>
 
-              <label className="mt-5 block rounded-[24px] border border-dashed border-[#d5d7df] bg-white px-4 py-6 text-center">
-                <input
-                  type="file"
-                  onChange={handleFileUpload}
-                  disabled={uploadingFile || loading}
-                  className="hidden"
-                />
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#121216] px-4 py-2 text-sm font-medium text-white">
-                  <FileUp className="h-4 w-4" />
-                  {uploadingFile ? 'Enviando...' : 'Selecionar arquivo'}
-                </span>
-                <p className="mt-3 text-sm leading-6 text-[#5d5d66]">
-                  O arquivo fica isolado por usuario no Storage e os metadados podem ir para
-                  a tabela `file_uploads`.
-                </p>
-              </label>
-            </section>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <form onSubmit={handleCreateCurso} className="space-y-3 rounded-[24px] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Novo curso</p>
+                  <AdminInput
+                    label="Nome"
+                    value={novoCursoNome}
+                    onChange={setNovoCursoNome}
+                    placeholder="Gestao de Tecnologia da Informacao"
+                  />
+                  <AdminInput
+                    label="Carga total"
+                    value={novoCursoCarga}
+                    onChange={setNovoCursoCarga}
+                    type="number"
+                    placeholder="360"
+                  />
+                  <AdminInput
+                    label="Cor"
+                    value={novoCursoCor}
+                    onChange={setNovoCursoCor}
+                    placeholder="#163B65"
+                  />
+                  <SmallSubmit submitting={submittingBase} label="Cadastrar curso" />
+                </form>
 
-            <div className="rounded-2xl border border-[#ececf1] bg-white px-4 py-3 text-sm text-[#5d5d66]">
-              {statusMessage}
-            </div>
+                <form onSubmit={handleCreateProfessor} className="space-y-3 rounded-[24px] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Novo professor</p>
+                  <AdminInput
+                    label="Nome"
+                    value={novoProfessorNome}
+                    onChange={setNovoProfessorNome}
+                    placeholder="Prof. Andre Campos"
+                  />
+                  <AdminInput
+                    label="Cidade de origem"
+                    value={novoProfessorCidade}
+                    onChange={setNovoProfessorCidade}
+                    placeholder="Cuiaba"
+                  />
+                  <AdminInput
+                    label="Especialidade"
+                    value={novoProfessorEspecialidade}
+                    onChange={setNovoProfessorEspecialidade}
+                    placeholder="Infraestrutura"
+                  />
+                  <SmallSubmit submitting={submittingBase} label="Cadastrar professor" />
+                </form>
+
+                <form onSubmit={handleCreateDisciplina} className="space-y-3 rounded-[24px] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Nova disciplina</p>
+                  <AdminInput
+                    label="Nome"
+                    value={novaDisciplinaNome}
+                    onChange={setNovaDisciplinaNome}
+                    placeholder="APC - Analise e Projeto de Computadores"
+                  />
+                  <SmallSubmit submitting={submittingBase} label="Cadastrar disciplina" />
+                </form>
+
+                <form onSubmit={handleCreateEvento} className="space-y-3 rounded-[24px] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Evento ou feriado</p>
+                  <AdminInput
+                    label="Nome"
+                    value={novoEventoNome}
+                    onChange={setNovoEventoNome}
+                    placeholder="FCARP TECH"
+                  />
+                  <AdminInput
+                    label="Data"
+                    value={novoEventoData}
+                    onChange={setNovoEventoData}
+                    type="date"
+                    placeholder=""
+                  />
+                  <AdminSelect
+                    label="Tipo"
+                    value={novoEventoTipo}
+                    onChange={(value) => setNovoEventoTipo(value as 'feriado' | 'evento')}
+                    options={[
+                      { label: 'Evento', value: 'evento' },
+                      { label: 'Feriado', value: 'feriado' },
+                    ]}
+                  />
+                  <SmallSubmit submitting={submittingBase} label="Bloquear data" />
+                </form>
+              </div>
+            </section>
           </div>
 
-          <section className="rounded-[28px] bg-[linear-gradient(135deg,#111827,#1f2937)] p-5 text-white">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <AdminStat
-                icon={<Users className="h-4 w-4" />}
-                label="Cursos"
-                value={String(courses.length)}
-              />
-              <AdminStat
-                icon={<CalendarDays className="h-4 w-4" />}
-                label="Rotas"
-                value="3"
-              />
-              <AdminStat
-                icon={<Shield className="h-4 w-4" />}
-                label="Auth"
-                value="Ativo"
-              />
-              <AdminStat
-                icon={<FolderLock className="h-4 w-4" />}
-                label="Arquivos"
-                value={String(files.length)}
-              />
-            </div>
+          <div className="space-y-4">
+            <section className="rounded-[28px] bg-[linear-gradient(135deg,#111827,#1f2937)] p-5 text-white">
+              <div className="grid gap-3 sm:grid-cols-4">
+                <AdminStat
+                  icon={<Users className="h-4 w-4" />}
+                  label="Cursos"
+                  value={String(cursos.length)}
+                />
+                <AdminStat
+                  icon={<CalendarDays className="h-4 w-4" />}
+                  label="Modulos"
+                  value={String(modulos.length)}
+                />
+                <AdminStat
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  label="Bloqueios"
+                  value={String(eventos.length)}
+                />
+                <AdminStat
+                  icon={<GitBranch className="h-4 w-4" />}
+                  label="Intercursos"
+                  value={String(intercursos.length)}
+                />
+              </div>
+            </section>
 
-            <div className="mt-5 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-[24px] bg-white/8 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Cursos cadastrados
-                </p>
-
-                <div className="mt-4 space-y-3">
-                  {courses.length > 0 ? (
-                    courses.map((course) => (
-                      <div
-                        key={course.id}
-                        className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
-                      >
-                        <p className="text-sm font-medium text-white">{course.name}</p>
-                        <p className="mt-1 text-sm text-white/65">
-                          {course.area} • {course.totalHours}h
+            <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
+                Progresso de carga horaria
+              </h2>
+              <div className="mt-4 space-y-3">
+                {progressCards.map(({ curso, progress }) => (
+                  <div key={curso.id} className="rounded-[22px] bg-white px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-[#16161a]">{curso.nome}</p>
+                        <p className="mt-1 text-xs text-[#7a7a84]">
+                          {progress.totalAgendado}h de {progress.totalCurso}h
                         </p>
                       </div>
-                    ))
-                  ) : (
-                    <EmptyCard text="Nenhum curso encontrado no banco ainda." />
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-[24px] bg-white/8 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-white/45">
-                    Arquivos protegidos
-                  </p>
-                  <span className="text-xs text-white/55">
-                    {formatBytes(totalStorageBytes)}
-                  </span>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {files.length > 0 ? (
-                    files.map((file) => (
+                      <span className="text-sm font-semibold text-[#5b61ff]">
+                        {progress.percentual}%
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-[#edf0f3]">
                       <div
-                        key={file.path}
-                        className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
-                      >
-                        <p className="truncate text-sm font-medium text-white">{file.name}</p>
-                        <p className="mt-1 text-sm text-white/65">
-                          {formatBytes(file.size)} • {formatDate(file.createdAt)}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <EmptyCard text="Nenhum arquivo listado. Crie o bucket e envie o primeiro arquivo." />
-                  )}
-                </div>
+                        className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
+                        style={{ width: `${progress.percentual}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </section>
+            </section>
+
+            <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
+                Eventos e bloqueios
+              </h2>
+              <div className="mt-4 space-y-3">
+                {eventos.slice(0, 6).map((evento) => (
+                  <div key={evento.id} className="rounded-[22px] bg-white px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-[#16161a]">{evento.nome}</p>
+                        <p className="mt-1 text-xs text-[#7a7a84]">{evento.data}</p>
+                      </div>
+                      <span className="rounded-full bg-[#eef0ff] px-3 py-1 text-xs font-medium text-[#5b61ff]">
+                        {evento.tipo}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
+                Linha do tempo recente
+              </h2>
+              <div className="mt-4 space-y-3">
+                {cronogramaCards.slice(0, 6).map((card) => (
+                  <div key={card.id} className="rounded-[22px] bg-white px-4 py-4">
+                    <p className="text-sm font-medium text-[#16161a]">{card.disciplinaNome}</p>
+                    <p className="mt-1 text-xs text-[#7a7a84]">
+                      {formatDateRange(card.dataInicio, card.dataFim)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {card.cursos.map((curso) => (
+                        <span
+                          key={`${card.id}-${curso.id}`}
+                          className="rounded-full px-3 py-1 text-xs font-medium text-white"
+                          style={{ backgroundColor: curso.corHex ?? '#163B65' }}
+                        >
+                          {curso.nome}
+                        </span>
+                      ))}
+                    </div>
+                    {card.professorNome ? (
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#f6f8fb] px-3 py-1 text-xs text-[#5d5d66]">
+                        <Check className="h-3.5 w-3.5" />
+                        {card.professorNome}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </main>
@@ -455,12 +793,14 @@ function AdminInput({
   label,
   onChange,
   placeholder,
+  readOnly = false,
   type = 'text',
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
   placeholder: string;
+  readOnly?: boolean;
   type?: React.HTMLInputTypeAttribute;
   value: string;
 }) {
@@ -470,11 +810,60 @@ function AdminInput({
       <input
         type={type}
         value={value}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[#5b61ff]"
+        className="w-full rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[#5b61ff] read-only:bg-[#f3f4f8]"
       />
     </label>
+  );
+}
+
+function AdminSelect({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-[#4f4f59]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3 text-sm text-[#171717] outline-none transition focus:border-[#5b61ff]"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SmallSubmit({
+  label,
+  submitting,
+}: {
+  label: string;
+  submitting: boolean;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={submitting}
+      className="inline-flex items-center gap-2 rounded-full bg-[#121216] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-70"
+    >
+      <Plus className="h-4 w-4" />
+      {label}
+    </button>
   );
 }
 
@@ -498,40 +887,4 @@ function AdminStat({
       </p>
     </div>
   );
-}
-
-function EmptyCard({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 px-4 py-4 text-sm text-white/65">
-      {text}
-    </div>
-  );
-}
-
-function formatBytes(value: number | null) {
-  if (!value || Number.isNaN(value)) {
-    return '0 KB';
-  }
-
-  if (value < 1024) {
-    return `${value} B`;
-  }
-
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(value: string | null) {
-  if (!value) {
-    return 'sem data';
-  }
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(value));
 }
