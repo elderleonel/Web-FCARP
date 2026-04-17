@@ -14,7 +14,9 @@ export type Professor = {
 
 export type Disciplina = {
   cargaHorariaTotal: number | null;
+  courseIds: string[];
   id: string;
+  isIntercurso: boolean;
   nome: string;
 };
 
@@ -41,6 +43,11 @@ export type CronogramaModulo = {
 export type Intercurso = {
   cronogramaModuloId: string;
   cursoId: string;
+};
+
+export type DisciplinaCurso = {
+  cursoId: string;
+  disciplinaId: string;
 };
 
 export type CronogramaPublicoCard = {
@@ -99,9 +106,27 @@ export const fallbackProfessores: Professor[] = [
 ];
 
 export const fallbackDisciplinas: Disciplina[] = [
-  { id: 'disc-apc', nome: 'APC - Analise e Projeto de Computadores', cargaHorariaTotal: 72 },
-  { id: 'disc-fso', nome: 'FSO - Fundamentos de Sistemas Operacionais', cargaHorariaTotal: 72 },
-  { id: 'disc-ic', nome: 'IC - Infraestrutura em Computacao', cargaHorariaTotal: 72 },
+  {
+    id: 'disc-apc',
+    nome: 'APC - Analise e Projeto de Computadores',
+    cargaHorariaTotal: 72,
+    courseIds: ['curso-gti'],
+    isIntercurso: false,
+  },
+  {
+    id: 'disc-fso',
+    nome: 'FSO - Fundamentos de Sistemas Operacionais',
+    cargaHorariaTotal: 72,
+    courseIds: ['curso-gti', 'curso-gestao'],
+    isIntercurso: true,
+  },
+  {
+    id: 'disc-ic',
+    nome: 'IC - Infraestrutura em Computacao',
+    cargaHorariaTotal: 72,
+    courseIds: ['curso-contabilidade'],
+    isIntercurso: false,
+  },
 ];
 
 export const fallbackEventos: EventoFeriado[] = [

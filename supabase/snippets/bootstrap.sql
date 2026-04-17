@@ -17,7 +17,14 @@ create table if not exists professores (
 create table if not exists disciplinas (
   id uuid primary key default uuid_generate_v4(),
   nome text not null unique,
-  carga_horaria_total integer check (carga_horaria_total > 0)
+  carga_horaria_total integer check (carga_horaria_total > 0),
+  is_intercurso boolean not null default false
+);
+
+create table if not exists disciplina_cursos (
+  disciplina_id uuid not null references disciplinas(id) on delete cascade,
+  curso_id uuid not null references cursos(id) on delete cascade,
+  primary key (disciplina_id, curso_id)
 );
 
 do $$ begin
@@ -50,6 +57,9 @@ create table if not exists cronograma_modulos (
 
 alter table disciplinas
   add column if not exists carga_horaria_total integer;
+
+alter table disciplinas
+  add column if not exists is_intercurso boolean not null default false;
 
 alter table cronograma_modulos
   add column if not exists carga_horaria_diaria integer;
@@ -92,6 +102,8 @@ create table if not exists intercursos (
 
 create index if not exists idx_intercursos_curso on intercursos (curso_id);
 create index if not exists idx_intercursos_modulo on intercursos (cronograma_modulo_id);
+create index if not exists idx_disciplina_cursos_curso on disciplina_cursos (curso_id);
+create index if not exists idx_disciplina_cursos_disciplina on disciplina_cursos (disciplina_id);
 
 alter table cursos enable row level security;
 alter table professores enable row level security;
@@ -99,6 +111,7 @@ alter table disciplinas enable row level security;
 alter table eventos_feriados enable row level security;
 alter table cronograma_modulos enable row level security;
 alter table intercursos enable row level security;
+alter table disciplina_cursos enable row level security;
 
 drop policy if exists "public read cursos" on cursos;
 create policy "public read cursos"
@@ -133,6 +146,12 @@ using (true);
 drop policy if exists "public read intercursos" on intercursos;
 create policy "public read intercursos"
 on intercursos for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "public read disciplina_cursos" on disciplina_cursos;
+create policy "public read disciplina_cursos"
+on disciplina_cursos for select
 to anon, authenticated
 using (true);
 
@@ -174,6 +193,13 @@ with check (true);
 drop policy if exists "authenticated manage intercursos" on intercursos;
 create policy "authenticated manage intercursos"
 on intercursos for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "authenticated manage disciplina_cursos" on disciplina_cursos;
+create policy "authenticated manage disciplina_cursos"
+on disciplina_cursos for all
 to authenticated
 using (true)
 with check (true);

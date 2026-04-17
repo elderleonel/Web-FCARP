@@ -3,6 +3,7 @@ import {
   type CronogramaModulo,
   type Curso,
   type Disciplina,
+  type DisciplinaCurso,
   type EventoFeriado,
   type Intercurso,
   type Professor,
@@ -12,6 +13,7 @@ export type PlatformData = {
   cronogramaModulos: CronogramaModulo[];
   cursos: Curso[];
   disciplinas: Disciplina[];
+  disciplinaCursos: DisciplinaCurso[];
   eventosFeriados: EventoFeriado[];
   intercursos: Intercurso[];
   message: string;
@@ -27,6 +29,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
       cronogramaModulos: [],
       cursos: [],
       disciplinas: [],
+      disciplinaCursos: [],
       eventosFeriados: [],
       intercursos: [],
       message:
@@ -40,6 +43,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
     cursosResult,
     professoresResult,
     disciplinasResult,
+    disciplinaCursosResult,
     eventosResult,
     modulosResult,
     intercursosResult,
@@ -54,8 +58,12 @@ export async function loadPlatformData(): Promise<PlatformData> {
       .order('nome', { ascending: true }),
     supabase
       .from('disciplinas')
-      .select('id, nome, carga_horaria_total')
+      .select('id, nome, carga_horaria_total, is_intercurso')
       .order('nome', { ascending: true }),
+    supabase
+      .from('disciplina_cursos')
+      .select('disciplina_id, curso_id')
+      .order('curso_id', { ascending: true }),
     supabase
       .from('eventos_feriados')
       .select('id, nome, data, tipo')
@@ -76,6 +84,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
     cursosResult.error ||
     professoresResult.error ||
     disciplinasResult.error ||
+    disciplinaCursosResult.error ||
     eventosResult.error ||
     modulosResult.error ||
     intercursosResult.error
@@ -84,6 +93,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
       cronogramaModulos: [],
       cursos: [],
       disciplinas: [],
+      disciplinaCursos: [],
       eventosFeriados: [],
       intercursos: [],
       message:
@@ -99,6 +109,11 @@ export async function loadPlatformData(): Promise<PlatformData> {
     disciplinasResult.data?.length;
 
   if (!hasMinimumData) {
+    const disciplinaCursos = (disciplinaCursosResult.data ?? []).map((item) => ({
+      cursoId: item.curso_id,
+      disciplinaId: item.disciplina_id,
+    }));
+
     return {
       cronogramaModulos: (modulosResult.data ?? []).map((item) => ({
         cargaHorariaDiaria: item.carga_horaria_diaria,
@@ -120,9 +135,14 @@ export async function loadPlatformData(): Promise<PlatformData> {
       })),
       disciplinas: (disciplinasResult.data ?? []).map((item) => ({
         cargaHorariaTotal: item.carga_horaria_total,
+        courseIds: disciplinaCursos
+          .filter((link) => link.disciplinaId === item.id)
+          .map((link) => link.cursoId),
         id: item.id,
+        isIntercurso: item.is_intercurso,
         nome: item.nome,
       })),
+      disciplinaCursos,
       eventosFeriados: (eventosResult.data ?? []).map((item) => ({
         data: item.data,
         id: item.id,
@@ -146,6 +166,10 @@ export async function loadPlatformData(): Promise<PlatformData> {
   }
 
   return {
+    disciplinaCursos: (disciplinaCursosResult.data ?? []).map((item) => ({
+      cursoId: item.curso_id,
+      disciplinaId: item.disciplina_id,
+    })),
     cronogramaModulos: (modulosResult.data ?? []).map((item) => ({
       cargaHorariaDiaria: item.carga_horaria_diaria,
       id: item.id,
@@ -166,7 +190,11 @@ export async function loadPlatformData(): Promise<PlatformData> {
     })),
     disciplinas: (disciplinasResult.data ?? []).map((item) => ({
       cargaHorariaTotal: item.carga_horaria_total,
+      courseIds: (disciplinaCursosResult.data ?? [])
+        .filter((link) => link.disciplina_id === item.id)
+        .map((link) => link.curso_id),
       id: item.id,
+      isIntercurso: item.is_intercurso,
       nome: item.nome,
     })),
     eventosFeriados: (eventosResult.data ?? []).map((item) => ({

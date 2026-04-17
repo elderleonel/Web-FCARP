@@ -132,8 +132,12 @@ export function AdminDashboardClient({
 
   const [novaDisciplinaNome, setNovaDisciplinaNome] = useState('');
   const [novaDisciplinaCarga, setNovaDisciplinaCarga] = useState('72');
+  const [novaDisciplinaIntercurso, setNovaDisciplinaIntercurso] = useState(false);
+  const [novaDisciplinaCourseIds, setNovaDisciplinaCourseIds] = useState<string[]>([]);
   const [editDisciplinaNome, setEditDisciplinaNome] = useState('');
   const [editDisciplinaCarga, setEditDisciplinaCarga] = useState('72');
+  const [editDisciplinaIntercurso, setEditDisciplinaIntercurso] = useState(false);
+  const [editDisciplinaCourseIds, setEditDisciplinaCourseIds] = useState<string[]>([]);
 
   const [novoEventoNome, setNovoEventoNome] = useState('');
   const [novoEventoData, setNovoEventoData] = useState('');
@@ -144,6 +148,7 @@ export function AdminDashboardClient({
   const [editEventoData, setEditEventoData] = useState('');
   const [editEventoTipo, setEditEventoTipo] = useState<'feriado' | 'evento'>('evento');
 
+  const [cursoBaseId, setCursoBaseId] = useState('');
   const [disciplinaId, setDisciplinaId] = useState('');
   const [professorId, setProfessorId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
@@ -188,10 +193,30 @@ export function AdminDashboardClient({
     [disciplinas, modulos]
   );
 
+  const disciplinasDisponiveis = useMemo(() => {
+    if (!cursoBaseId) {
+      return disciplinas;
+    }
+
+    return disciplinas.filter((disciplina) => disciplina.courseIds.includes(cursoBaseId));
+  }, [cursoBaseId, disciplinas]);
+
+  const disciplinaIdEfetiva = disciplinasDisponiveis.some((item) => item.id === disciplinaId)
+    ? disciplinaId
+    : (disciplinasDisponiveis[0]?.id ?? '');
+
   const selectedDisciplina = useMemo(
-    () => disciplinas.find((item) => item.id === disciplinaId) ?? null,
-    [disciplinaId, disciplinas]
+    () => disciplinas.find((item) => item.id === disciplinaIdEfetiva) ?? null,
+    [disciplinaIdEfetiva, disciplinas]
   );
+
+  const cursosPermitidosDaDisciplina = useMemo(() => {
+    if (!selectedDisciplina) {
+      return [];
+    }
+
+    return cursos.filter((curso) => selectedDisciplina.courseIds.includes(curso.id));
+  }, [cursos, selectedDisciplina]);
 
   const selectedDailyHours = Number(cargaHorariaDiaria) || 0;
   const selectedDaysCount = getSelectedDaysCountInRange(
@@ -249,12 +274,21 @@ export function AdminDashboardClient({
       setIntercursos(platformData.intercursos);
       setStatusMessage(platformData.message);
 
+      if (!cursoBaseId && platformData.cursos.length > 0) {
+        setCursoBaseId(platformData.cursos[0].id);
+      }
+
       if (!selectedCourseIds.length && platformData.cursos.length > 0) {
         setSelectedCourseIds([platformData.cursos[0].id]);
       }
 
-      if (!disciplinaId && platformData.disciplinas.length > 0) {
-        setDisciplinaId(platformData.disciplinas[0].id);
+      const cursoInicial = cursoBaseId || platformData.cursos[0]?.id || '';
+      const disciplinasDoCursoInicial = cursoInicial
+        ? platformData.disciplinas.filter((item) => item.courseIds.includes(cursoInicial))
+        : platformData.disciplinas;
+
+      if (!disciplinaId && disciplinasDoCursoInicial.length > 0) {
+        setDisciplinaId(disciplinasDoCursoInicial[0].id);
       }
 
       if (!professorId && platformData.professores.length > 0) {
@@ -278,7 +312,7 @@ export function AdminDashboardClient({
     return () => {
       isMounted = false;
     };
-  }, [router, userEmail, dataInicio, disciplinaId, professorId, selectedCourseIds.length]);
+  }, [router, userEmail, dataInicio, disciplinaId, professorId, selectedCourseIds.length, cursoBaseId]);
 
   async function reloadPlatformData() {
     const platformData = await loadPlatformData();
@@ -331,6 +365,8 @@ export function AdminDashboardClient({
     setEditDisciplinaCarga(
       disciplina.cargaHorariaTotal ? String(disciplina.cargaHorariaTotal) : '72'
     );
+    setEditDisciplinaIntercurso(disciplina.isIntercurso);
+    setEditDisciplinaCourseIds(disciplina.courseIds);
     setDisciplinaMessage('');
   }
 
@@ -436,6 +472,21 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (!editDisciplinaCourseIds.length) {
+      setDisciplinaMessage('Vincule a disciplina a pelo menos um curso.');
+      return;
+    }
+
+    if (!editDisciplinaIntercurso && editDisciplinaCourseIds.length > 1) {
+      setDisciplinaMessage('Disciplina regular deve ficar vinculada a apenas um curso.');
+      return;
+    }
+
+    if (editDisciplinaIntercurso && editDisciplinaCourseIds.length < 2) {
+      setDisciplinaMessage('Disciplina intercurso precisa estar vinculada a pelo menos dois cursos.');
+      return;
+    }
+
     setSavingDisciplinaId(disciplinaIdToUpdate);
     setDisciplinaMessage('Atualizando disciplina...');
 
@@ -443,6 +494,7 @@ export function AdminDashboardClient({
       .from('disciplinas')
       .update({
         carga_horaria_total: Number(editDisciplinaCarga),
+        is_intercurso: editDisciplinaIntercurso,
         nome: editDisciplinaNome.trim(),
       })
       .eq('id', disciplinaIdToUpdate);
@@ -450,6 +502,30 @@ export function AdminDashboardClient({
     if (error) {
       setSavingDisciplinaId(null);
       setDisciplinaMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    const { error: deleteLinksError } = await supabase
+      .from('disciplina_cursos')
+      .delete()
+      .eq('disciplina_id', disciplinaIdToUpdate);
+
+    if (deleteLinksError) {
+      setSavingDisciplinaId(null);
+      setDisciplinaMessage(formatRequestMessage(deleteLinksError.message));
+      return;
+    }
+
+    const { error: insertLinksError } = await supabase.from('disciplina_cursos').insert(
+      editDisciplinaCourseIds.map((cursoId) => ({
+        curso_id: cursoId,
+        disciplina_id: disciplinaIdToUpdate,
+      }))
+    );
+
+    if (insertLinksError) {
+      setSavingDisciplinaId(null);
+      setDisciplinaMessage(formatRequestMessage(insertLinksError.message));
       return;
     }
 
@@ -639,21 +715,56 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (!novaDisciplinaCourseIds.length) {
+      setDisciplinaMessage('Selecione pelo menos um curso para a disciplina.');
+      return;
+    }
+
+    if (!novaDisciplinaIntercurso && novaDisciplinaCourseIds.length > 1) {
+      setDisciplinaMessage('Disciplina regular deve ficar vinculada a apenas um curso.');
+      return;
+    }
+
+    if (novaDisciplinaIntercurso && novaDisciplinaCourseIds.length < 2) {
+      setDisciplinaMessage('Disciplina intercurso precisa estar vinculada a pelo menos dois cursos.');
+      return;
+    }
+
     setSubmittingDisciplina(true);
     setDisciplinaMessage('Salvando disciplina...');
-    const { error } = await supabase.from('disciplinas').insert({
-      carga_horaria_total: Number(novaDisciplinaCarga),
-      nome: novaDisciplinaNome.trim(),
-    });
+    const { data: disciplinaInserida, error } = await supabase
+      .from('disciplinas')
+      .insert({
+        carga_horaria_total: Number(novaDisciplinaCarga),
+        is_intercurso: novaDisciplinaIntercurso,
+        nome: novaDisciplinaNome.trim(),
+      })
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !disciplinaInserida) {
       setSubmittingDisciplina(false);
-      setDisciplinaMessage(formatRequestMessage(error.message));
+      setDisciplinaMessage(formatRequestMessage(error?.message ?? 'Nao foi possivel salvar a disciplina.'));
+      return;
+    }
+
+    const { error: linksError } = await supabase.from('disciplina_cursos').insert(
+      novaDisciplinaCourseIds.map((cursoId) => ({
+        curso_id: cursoId,
+        disciplina_id: disciplinaInserida.id,
+      }))
+    );
+
+    if (linksError) {
+      setSubmittingDisciplina(false);
+      setDisciplinaMessage(formatRequestMessage(linksError.message));
       return;
     }
 
     setNovaDisciplinaNome('');
     setNovaDisciplinaCarga('72');
+    setNovaDisciplinaIntercurso(false);
+    setNovaDisciplinaCourseIds([]);
     await reloadPlatformData();
     setSubmittingDisciplina(false);
     setDisciplinaMessage('Disciplina cadastrada com sucesso.');
@@ -709,13 +820,27 @@ export function AdminDashboardClient({
       return;
     }
 
-    if (!selectedCourseIds.length) {
-      setStatusMessage('Selecione pelo menos um curso participante.');
+    if (!cursoBaseId) {
+      setStatusMessage('Selecione o curso base antes de montar o calendario.');
       return;
     }
 
     if (!selectedDisciplina) {
       setStatusMessage('Selecione uma disciplina valida para montar a semana.');
+      return;
+    }
+
+    if (!selectedDisciplina.courseIds.includes(cursoBaseId)) {
+      setStatusMessage('A disciplina selecionada nao pertence ao curso base escolhido.');
+      return;
+    }
+
+    const courseIdsToSchedule = selectedDisciplina.isIntercurso
+      ? selectedCourseIds.filter((cursoId) => selectedDisciplina.courseIds.includes(cursoId))
+      : [cursoBaseId];
+
+    if (!courseIdsToSchedule.length) {
+      setStatusMessage('Selecione pelo menos um curso participante.');
       return;
     }
 
@@ -795,7 +920,7 @@ export function AdminDashboardClient({
 
     const relatedModuloIds = new Set(
       intercursos
-        .filter((item) => selectedCourseIds.includes(item.cursoId))
+        .filter((item) => courseIdsToSchedule.includes(item.cursoId))
         .map((item) => item.cronogramaModuloId)
     );
 
@@ -820,7 +945,7 @@ export function AdminDashboardClient({
         carga_horaria_diaria: selectedDailyHours,
         carga_horaria_semanal: previewWeeklyHours,
         dias_semana: selectedWeekDays,
-        disciplina_id: disciplinaId,
+        disciplina_id: disciplinaIdEfetiva,
         professor_id: professorId || null,
         data_inicio: dataInicio,
         data_fim: dataFim,
@@ -837,7 +962,7 @@ export function AdminDashboardClient({
     }
 
     const { error: intercursoError } = await supabase.from('intercursos').insert(
-      selectedCourseIds.map((cursoId) => ({
+      courseIdsToSchedule.map((cursoId) => ({
         cronograma_modulo_id: moduloInserido.id,
         curso_id: cursoId,
       }))
@@ -853,6 +978,7 @@ export function AdminDashboardClient({
     setDataFim('');
     setCargaHorariaDiaria('4');
     setSelectedWeekDays([1, 2, 3, 4, 5]);
+    setSelectedCourseIds(cursoBaseId ? [cursoBaseId] : []);
     setSala('');
     setObservacoes('');
     await reloadPlatformData();
@@ -879,6 +1005,49 @@ export function AdminDashboardClient({
         ? current.filter((item) => item !== cursoId)
         : [...current, cursoId]
     );
+  }
+
+  function toggleDisciplinaCourseSelection(
+    cursoId: string,
+    mode: 'create' | 'edit'
+  ) {
+    const setter = mode === 'create' ? setNovaDisciplinaCourseIds : setEditDisciplinaCourseIds;
+
+    setter((current) =>
+      current.includes(cursoId)
+        ? current.filter((item) => item !== cursoId)
+        : [...current, cursoId].sort((left, right) => left.localeCompare(right))
+    );
+  }
+
+  function handleCursoBaseChange(value: string) {
+    setCursoBaseId(value);
+    setSelectedCourseIds(value ? [value] : []);
+    const proximasDisciplinas = value
+      ? disciplinas.filter((disciplina) => disciplina.courseIds.includes(value))
+      : disciplinas;
+    setDisciplinaId(proximasDisciplinas[0]?.id ?? '');
+  }
+
+  function handleDisciplinaChange(value: string) {
+    setDisciplinaId(value);
+
+    const disciplinaSelecionada =
+      disciplinas.find((disciplina) => disciplina.id === value) ?? null;
+
+    if (!disciplinaSelecionada || !cursoBaseId) {
+      return;
+    }
+
+    if (!disciplinaSelecionada.isIntercurso) {
+      setSelectedCourseIds([cursoBaseId]);
+      return;
+    }
+
+    const nextCourseIds = disciplinaSelecionada.courseIds.includes(cursoBaseId)
+      ? [cursoBaseId]
+      : [];
+    setSelectedCourseIds(nextCourseIds);
   }
 
   function toggleWeekDay(day: number) {
@@ -960,10 +1129,19 @@ export function AdminDashboardClient({
 
               <form onSubmit={handleCreateModulo} className="mt-5 grid gap-4 md:grid-cols-2">
                 <AdminSelect
+                  label="Curso base"
+                  value={cursoBaseId}
+                  onChange={handleCursoBaseChange}
+                  options={cursos.map((item) => ({ label: item.nome, value: item.id }))}
+                />
+                <AdminSelect
                   label="Disciplina"
-                  value={disciplinaId}
-                  onChange={setDisciplinaId}
-                  options={disciplinas.map((item) => ({ label: item.nome, value: item.id }))}
+                  value={disciplinaIdEfetiva}
+                  onChange={handleDisciplinaChange}
+                  options={disciplinasDisponiveis.map((item) => ({
+                    label: item.isIntercurso ? `${item.nome} · Intercurso` : item.nome,
+                    value: item.id,
+                  }))}
                 />
                 <AdminSelect
                   label="Professor"
@@ -1117,20 +1295,31 @@ export function AdminDashboardClient({
                     Cursos participantes
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {cursos.map((curso) => (
+                    {cursosPermitidosDaDisciplina.map((curso) => {
+                      const disabled = !selectedDisciplina?.isIntercurso;
+
+                      return (
                       <label
                         key={curso.id}
-                        className="flex items-center gap-3 rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3"
+                        className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+                          disabled ? 'border-[#eef0f3] bg-[#f7f8fa]' : 'border-[#e5e5ec] bg-white'
+                        }`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedCourseIds.includes(curso.id)}
+                          disabled={disabled}
                           onChange={() => toggleCourse(curso.id)}
                         />
                         <span className="text-sm text-[#171717]">{curso.nome}</span>
                       </label>
-                    ))}
+                    )})}
                   </div>
+                  {!selectedDisciplina?.isIntercurso ? (
+                    <p className="mt-2 text-xs text-[#7a7a84]">
+                      Para disciplina regular, o calendario usa apenas o curso base. Marque a disciplina como intercurso para compartilhar com mais cursos.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="md:col-span-2">
@@ -1226,6 +1415,18 @@ export function AdminDashboardClient({
                     type="number"
                     placeholder="72"
                   />
+                  <AdminToggle
+                    label="Disciplina intercurso"
+                    checked={novaDisciplinaIntercurso}
+                    onChange={setNovaDisciplinaIntercurso}
+                    description="Ative quando a mesma disciplina deve aparecer em mais de um curso."
+                  />
+                  <CourseSelector
+                    courses={cursos}
+                    selectedCourseIds={novaDisciplinaCourseIds}
+                    onToggle={(cursoId) => toggleDisciplinaCourseSelection(cursoId, 'create')}
+                    label="Cursos vinculados"
+                  />
                   <InlineMessage message={disciplinaMessage} />
                   <SmallSubmit submitting={submittingDisciplina} label="Cadastrar disciplina" />
                 </form>
@@ -1235,9 +1436,7 @@ export function AdminDashboardClient({
                       key={disciplina.id}
                       title={disciplina.nome}
                       subtitle={
-                        disciplina.cargaHorariaTotal
-                          ? `${disciplina.cargaHorariaTotal}h no semestre`
-                          : 'Carga horaria nao definida'
+                        `${disciplina.cargaHorariaTotal ? `${disciplina.cargaHorariaTotal}h no semestre` : 'Carga horaria nao definida'} · ${disciplina.isIntercurso ? 'Intercurso' : 'Curso regular'}`
                       }
                       editing={editingDisciplinaId === disciplina.id}
                       saving={savingDisciplinaId === disciplina.id}
@@ -1248,9 +1447,23 @@ export function AdminDashboardClient({
                       onDelete={() => handleDeleteRegistro('disciplinas', disciplina.id, 'Disciplina')}
                     >
                       {editingDisciplinaId === disciplina.id ? (
-                        <div className="grid gap-3 md:grid-cols-2">
+                        <div className="grid gap-3">
+                          <div className="grid gap-3 md:grid-cols-2">
                           <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
                           <AdminInput label="Carga horaria" value={editDisciplinaCarga} onChange={setEditDisciplinaCarga} type="number" placeholder="72" />
+                          </div>
+                          <AdminToggle
+                            label="Disciplina intercurso"
+                            checked={editDisciplinaIntercurso}
+                            onChange={setEditDisciplinaIntercurso}
+                            description="Quando ativa, a disciplina pode ser usada em varios cursos vinculados."
+                          />
+                          <CourseSelector
+                            courses={cursos}
+                            selectedCourseIds={editDisciplinaCourseIds}
+                            onToggle={(cursoId) => toggleDisciplinaCourseSelection(cursoId, 'edit')}
+                            label="Cursos vinculados"
+                          />
                         </div>
                       ) : null}
                     </EditableItem>
@@ -1567,6 +1780,65 @@ function SmallSubmit({
       <Plus className="h-4 w-4" />
       {label}
     </button>
+  );
+}
+
+function AdminToggle({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3">
+      <div>
+        <p className="text-sm font-medium text-[#16161a]">{label}</p>
+        <p className="mt-1 text-xs text-[#7a7a84]">{description}</p>
+      </div>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
+  );
+}
+
+function CourseSelector({
+  courses,
+  label,
+  onToggle,
+  selectedCourseIds,
+}: {
+  courses: Curso[];
+  label: string;
+  onToggle: (cursoId: string) => void;
+  selectedCourseIds: string[];
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-[#4f4f59]">{label}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {courses.map((curso) => (
+          <label
+            key={curso.id}
+            className="flex items-center gap-3 rounded-2xl border border-[#e5e5ec] bg-white px-4 py-3"
+          >
+            <input
+              type="checkbox"
+              checked={selectedCourseIds.includes(curso.id)}
+              onChange={() => onToggle(curso.id)}
+            />
+            <span className="text-sm text-[#171717]">{curso.nome}</span>
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
 
