@@ -6,6 +6,20 @@ import { useState } from 'react';
 import { ArrowLeft, ArrowRight, LockKeyhole, Mail } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 
+function getReadableAuthMessage(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('email rate limit exceeded')) {
+    return 'Limite de envio atingido. Aguarde alguns minutos antes de solicitar um novo e-mail de redefinicao.';
+  }
+
+  if (normalized.includes('invalid login credentials')) {
+    return 'Credenciais invalidas. Verifique o e-mail, redefina a senha se necessario e tente novamente.';
+  }
+
+  return message;
+}
+
 export function AdminLoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -36,7 +50,7 @@ export function AdminLoginForm() {
 
     if (error) {
       setSubmitting(false);
-      setMessage(error.message);
+      setMessage(getReadableAuthMessage(error.message));
       return;
     }
 
@@ -66,7 +80,7 @@ export function AdminLoginForm() {
     setRecovering(false);
 
     if (error) {
-      setMessage(error.message);
+      setMessage(getReadableAuthMessage(error.message));
       return;
     }
 

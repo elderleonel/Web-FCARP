@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, CalendarDays, GraduationCap, ShieldCheck, Users } from 'lucide-react';
 import { loadPlatformData } from '@/lib/unisched-repository';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/lib/unisched-data';
 
 export default function Home() {
+  const router = useRouter();
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
@@ -27,6 +29,16 @@ export default function Home() {
   const [selectedCourseId, setSelectedCourseId] = useState('');
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
+    const token = searchParams.get('token');
+    const type = searchParams.get('type');
+
+    if (code || token || type === 'recovery') {
+      router.replace(`/admin/reset-password${window.location.search}`);
+      return;
+    }
+
     let isMounted = true;
 
     async function loadData() {
@@ -50,7 +62,7 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   const selectedCourse =
     cursos.find((curso) => curso.id === selectedCourseId) ?? cursos[0] ?? null;
