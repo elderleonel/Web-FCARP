@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, CalendarDays, GraduationCap, ShieldCheck, Users } from 'lucide-react';
+import { CalendarDays, GraduationCap, ShieldCheck, Users } from 'lucide-react';
 import { loadPlatformData } from '@/lib/unisched-repository';
 import {
   formatDateRange,
@@ -97,6 +97,21 @@ export default function Home() {
     [cursos.length, professores.length, modulos.length]
   );
 
+  const institucionalHighlights = [
+    {
+      label: 'Curso selecionado',
+      value: selectedCourse?.nome ?? 'Nao definido',
+    },
+    {
+      label: 'Progresso atual',
+      value: selectedProgress ? `${selectedProgress.percentual}%` : '--',
+    },
+    {
+      label: 'Bloqueios da semana',
+      value: String(nextBlockers.length),
+    },
+  ];
+
   return (
     <main className="min-h-screen bg-[#eef2f5] px-4 py-6 text-[#18212b] sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl rounded-[28px] border border-[#d9e1e8] bg-white shadow-[0_24px_60px_rgba(41,60,84,0.08)]">
@@ -178,6 +193,25 @@ export default function Home() {
                   title="Acesso administrativo"
                   text="O painel interno permanece reservado para cadastro, atualizacao e controle do calendario."
                 />
+              </div>
+
+              <div className="mt-8 rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7b8d]">
+                  Sintese executiva
+                </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {institucionalHighlights.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-[18px] border border-[#e1e7ed] bg-white px-4 py-4"
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#728396]">
+                        {item.label}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-[#132033]">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 

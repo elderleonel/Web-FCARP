@@ -74,6 +74,7 @@ export default function ConsultaPage() {
   const progress = selectedCourse
     ? getCourseProgress(selectedCourse, modulos, intercursos)
     : null;
+  const visibleEventos = eventos.slice(0, 4);
 
   return (
     <main className="min-h-screen bg-[#eef2f5] px-4 py-6 text-[#18212b] sm:px-6 lg:px-8">
@@ -150,9 +151,26 @@ export default function ConsultaPage() {
                   : 'Nao ha eventos ou bloqueios cadastrados.'}
               </p>
             </div>
+
+            <div className="mt-4 rounded-[20px] border border-[#dfe6ed] bg-white px-4 py-4">
+              <p className="text-sm font-medium text-[#132033]">Orientacao de uso</p>
+              <p className="mt-2 text-sm leading-6 text-[#607182]">
+                Esta area e destinada a consulta. Cadastros, ajustes de carga horaria e montagem do calendario permanecem restritos ao painel administrativo.
+              </p>
+            </div>
           </aside>
 
           <section className="space-y-4">
+            <div className="rounded-[24px] border border-[#dfe6ed] bg-[#f8fafc] px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#728396]">
+                Visao do curso
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <ConsultaMetric label="Curso" value={selectedCourse?.nome ?? 'Nao definido'} />
+                <ConsultaMetric label="Modulos visiveis" value={String(cards.length)} />
+                <ConsultaMetric label="Bloqueios cadastrados" value={String(eventos.length)} />
+              </div>
+            </div>
             {cards.length > 0 ? (
               cards.map((card) => (
                 <article
@@ -168,7 +186,7 @@ export default function ConsultaPage() {
                         {card.disciplinaNome}
                       </h2>
                       <p className="mt-2 text-sm text-[#607182]">
-                        {formatDateRange(card.dataInicio, card.dataFim)} •{' '}
+                        {formatDateRange(card.dataInicio, card.dataFim)} -{' '}
                         {card.cargaHorariaSemanal}h
                       </p>
                     </div>
@@ -210,7 +228,7 @@ export default function ConsultaPage() {
               </div>
             )}
 
-            {eventos.map((evento) => (
+            {visibleEventos.map((evento) => (
               <div
                 key={evento.id}
                 className="rounded-[20px] border border-[#e1e7ed] bg-[#f8fafc] px-4 py-4"
@@ -249,6 +267,23 @@ function ConsultaInfo({
         {icon}
         <span className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</span>
       </div>
+      <p className="mt-2 text-sm font-medium text-[#132033]">{value}</p>
+    </div>
+  );
+}
+
+function ConsultaMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[#e1e7ed] bg-white px-4 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#728396]">
+        {label}
+      </p>
       <p className="mt-2 text-sm font-medium text-[#132033]">{value}</p>
     </div>
   );
