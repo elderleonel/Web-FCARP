@@ -7,6 +7,15 @@ create table if not exists cursos (
   cor_hex text
 );
 
+create table if not exists curso_semestres (
+  id uuid primary key default uuid_generate_v4(),
+  curso_id uuid not null references cursos(id) on delete cascade,
+  numero integer not null check (numero > 0),
+  nome text,
+  ativo boolean not null default true,
+  constraint curso_semestres_unique unique (curso_id, numero)
+);
+
 create table if not exists professores (
   id uuid primary key default uuid_generate_v4(),
   nome text not null,
@@ -45,6 +54,7 @@ create table if not exists cronograma_modulos (
   id uuid primary key default uuid_generate_v4(),
   disciplina_id uuid not null references disciplinas(id),
   professor_id uuid references professores(id) on delete set null,
+  curso_semestre_id uuid references curso_semestres(id) on delete set null,
   data_inicio date not null,
   data_fim date not null,
   carga_horaria_semanal integer not null check (carga_horaria_semanal > 0),
@@ -70,6 +80,9 @@ alter table cronograma_modulos
 
 alter table cronograma_modulos
   add column if not exists semestre integer;
+
+alter table cronograma_modulos
+  add column if not exists curso_semestre_id uuid references curso_semestres(id) on delete set null;
 
 alter table disciplinas
   drop constraint if exists disciplinas_carga_horaria_total_check;
@@ -115,8 +128,11 @@ create index if not exists idx_intercursos_curso on intercursos (curso_id);
 create index if not exists idx_intercursos_modulo on intercursos (cronograma_modulo_id);
 create index if not exists idx_disciplina_cursos_curso on disciplina_cursos (curso_id);
 create index if not exists idx_disciplina_cursos_disciplina on disciplina_cursos (disciplina_id);
+create index if not exists idx_curso_semestres_curso on curso_semestres (curso_id);
+create index if not exists idx_cronograma_modulos_curso_semestre on cronograma_modulos (curso_semestre_id);
 
 alter table cursos enable row level security;
+alter table curso_semestres enable row level security;
 alter table professores enable row level security;
 alter table disciplinas enable row level security;
 alter table eventos_feriados enable row level security;
@@ -133,6 +149,12 @@ using (true);
 drop policy if exists "public read professores" on professores;
 create policy "public read professores"
 on professores for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "public read curso_semestres" on curso_semestres;
+create policy "public read curso_semestres"
+on curso_semestres for select
 to anon, authenticated
 using (true);
 
@@ -176,6 +198,13 @@ with check (true);
 drop policy if exists "authenticated manage professores" on professores;
 create policy "authenticated manage professores"
 on professores for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists "authenticated manage curso_semestres" on curso_semestres;
+create policy "authenticated manage curso_semestres"
+on curso_semestres for all
 to authenticated
 using (true)
 with check (true);

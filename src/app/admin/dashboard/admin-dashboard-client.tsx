@@ -32,6 +32,7 @@ import {
   rangesOverlap,
   type CronogramaModulo,
   type Curso,
+  type CursoSemestre,
   type Disciplina,
   type EventoFeriado,
   type Intercurso,
@@ -43,7 +44,12 @@ type AdminDashboardClientProps = {
 };
 
 type AdminView = 'visao' | 'calendario' | 'disciplinas' | 'apoio';
-type AdminSupportSection = 'cursos' | 'disciplinas' | 'professores' | 'eventos';
+type AdminSupportSection =
+  | 'cursos'
+  | 'semestres'
+  | 'disciplinas'
+  | 'professores'
+  | 'eventos';
 
 const WEEKDAY_OPTIONS = [
   { label: 'Seg', value: 1 },
@@ -92,6 +98,7 @@ export function AdminDashboardClient({
 }: AdminDashboardClientProps) {
   const router = useRouter();
   const [cursos, setCursos] = useState<Curso[]>([]);
+  const [courseSemesters, setCourseSemesters] = useState<CursoSemestre[]>([]);
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [eventos, setEventos] = useState<EventoFeriado[]>([]);
@@ -104,11 +111,13 @@ export function AdminDashboardClient({
   const [loading, setLoading] = useState(true);
   const [submittingCurso, setSubmittingCurso] = useState(false);
   const [submittingProfessor, setSubmittingProfessor] = useState(false);
+  const [submittingSemester, setSubmittingSemester] = useState(false);
   const [submittingDisciplina, setSubmittingDisciplina] = useState(false);
   const [submittingEvento, setSubmittingEvento] = useState(false);
   const [submittingModulo, setSubmittingModulo] = useState(false);
   const [courseMessage, setCourseMessage] = useState('');
   const [professorMessage, setProfessorMessage] = useState('');
+  const [semesterMessage, setSemesterMessage] = useState('');
   const [disciplinaMessage, setDisciplinaMessage] = useState('');
   const [eventoMessage, setEventoMessage] = useState('');
   const [activeView, setActiveView] = useState<AdminView>('visao');
@@ -116,10 +125,12 @@ export function AdminDashboardClient({
     useState<AdminSupportSection>('cursos');
   const [editingCursoId, setEditingCursoId] = useState<string | null>(null);
   const [editingProfessorId, setEditingProfessorId] = useState<string | null>(null);
+  const [editingSemesterId, setEditingSemesterId] = useState<string | null>(null);
   const [editingDisciplinaId, setEditingDisciplinaId] = useState<string | null>(null);
   const [editingEventoId, setEditingEventoId] = useState<string | null>(null);
   const [savingCursoId, setSavingCursoId] = useState<string | null>(null);
   const [savingProfessorId, setSavingProfessorId] = useState<string | null>(null);
+  const [savingSemesterId, setSavingSemesterId] = useState<string | null>(null);
   const [savingDisciplinaId, setSavingDisciplinaId] = useState<string | null>(null);
   const [savingEventoId, setSavingEventoId] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -137,6 +148,13 @@ export function AdminDashboardClient({
   const [editProfessorNome, setEditProfessorNome] = useState('');
   const [editProfessorCidade, setEditProfessorCidade] = useState('');
   const [editProfessorEspecialidade, setEditProfessorEspecialidade] = useState('');
+
+  const [novoSemesterNumero, setNovoSemesterNumero] = useState('1');
+  const [novoSemesterNome, setNovoSemesterNome] = useState('');
+  const [novoSemesterAtivo, setNovoSemesterAtivo] = useState(true);
+  const [editSemesterNumero, setEditSemesterNumero] = useState('1');
+  const [editSemesterNome, setEditSemesterNome] = useState('');
+  const [editSemesterAtivo, setEditSemesterAtivo] = useState(true);
 
   const [novaDisciplinaNome, setNovaDisciplinaNome] = useState('');
   const [novaDisciplinaCarga, setNovaDisciplinaCarga] = useState('72');
@@ -161,7 +179,7 @@ export function AdminDashboardClient({
   const [professorId, setProfessorId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
-  const [semestre, setSemestre] = useState('1');
+  const [selectedCourseSemesterId, setSelectedCourseSemesterId] = useState('');
   const [cargaHorariaDiaria, setCargaHorariaDiaria] = useState('4');
   const [sala, setSala] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -171,6 +189,24 @@ export function AdminDashboardClient({
   const selectedCurso = useMemo(
     () => cursos.find((curso) => curso.id === cursoBaseId) ?? null,
     [cursoBaseId, cursos]
+  );
+
+  const courseSemestersForSelectedCourse = useMemo(
+    () =>
+      courseSemesters
+        .filter((courseSemester) => courseSemester.cursoId === cursoBaseId)
+        .sort((left, right) => left.numero - right.numero),
+    [courseSemesters, cursoBaseId]
+  );
+
+  const selectedCourseSemester = useMemo(
+    () =>
+      courseSemestersForSelectedCourse.find(
+        (courseSemester) => courseSemester.id === selectedCourseSemesterId
+      ) ??
+      courseSemestersForSelectedCourse[0] ??
+      null,
+    [courseSemestersForSelectedCourse, selectedCourseSemesterId]
   );
 
   const disciplinasDisponiveis = useMemo(() => {
@@ -262,14 +298,64 @@ export function AdminDashboardClient({
   const previewRemainingHours = disciplinaProgress
     ? Math.max(disciplinaProgress.total - disciplinaProgress.scheduled - previewWeeklyHours, 0)
     : null;
+  const professorConflictDetails = useMemo(() => {
+    if (!professorId || !dataInicio || !dataFim) {
+      return null;
+    }
+
+    const conflict = modulos.find(
+      (modulo) =>
+        modulo.professorId === professorId &&
+        rangesOverlap(modulo.dataInicio, modulo.dataFim, dataInicio, dataFim)
+    );
+
+    if (!conflict) {
+      return null;
+    }
+
+    const professor = professores.find((item) => item.id === conflict.professorId) ?? null;
+    const disciplina = disciplinas.find((item) => item.id === conflict.disciplinaId) ?? null;
+    const conflictCourses = intercursos
+      .filter((item) => item.cronogramaModuloId === conflict.id)
+      .map((item) => cursos.find((curso) => curso.id === item.cursoId)?.nome ?? null)
+      .filter((value): value is string => Boolean(value));
+    const conflictSemester =
+      courseSemesters.find((item) => item.id === conflict.cursoSemestreId)?.numero ??
+      conflict.semestre ??
+      null;
+
+    return {
+      cursoLabel: conflictCourses.length ? conflictCourses.join(', ') : 'Curso nao identificado',
+      disciplinaNome: disciplina?.nome ?? 'Disciplina nao identificada',
+      periodo: formatDateRange(conflict.dataInicio, conflict.dataFim),
+      professorNome: professor?.nome ?? 'Professor nao identificado',
+      sala: conflict.sala ?? 'Sala nao informada',
+      semestreLabel: getSemesterLabel(conflictSemester),
+    };
+  }, [
+    courseSemesters,
+    cursos,
+    dataFim,
+    dataInicio,
+    disciplinas,
+    intercursos,
+    modulos,
+    professorId,
+    professores,
+  ]);
   const supportSummary = useMemo(
     () => [
       { key: 'cursos' as const, label: 'Cursos', value: String(cursos.length) },
+      {
+        key: 'semestres' as const,
+        label: 'Semestres',
+        value: String(courseSemesters.length),
+      },
       { key: 'disciplinas' as const, label: 'Disciplinas', value: String(disciplinas.length) },
       { key: 'professores' as const, label: 'Professores', value: String(professores.length) },
       { key: 'eventos' as const, label: 'Bloqueios', value: String(eventos.length) },
     ],
-    [cursos.length, disciplinas.length, professores.length, eventos.length]
+    [cursos.length, courseSemesters.length, disciplinas.length, professores.length, eventos.length]
   );
 
   useEffect(() => {
@@ -306,6 +392,7 @@ export function AdminDashboardClient({
 
       setAuthMessage(`Sessao ativa para ${userResult.user.email ?? userEmail}.`);
       setCursos(platformData.cursos);
+      setCourseSemesters(platformData.courseSemesters);
       setProfessores(platformData.professores);
       setDisciplinas(platformData.disciplinas);
       setEventos(platformData.eventosFeriados);
@@ -315,6 +402,15 @@ export function AdminDashboardClient({
 
       if (!cursoBaseId && platformData.cursos.length > 0) {
         setCursoBaseId(platformData.cursos[0].id);
+      }
+
+      const courseIdInFocus = cursoBaseId || platformData.cursos[0]?.id || '';
+      const semestersInFocus = platformData.courseSemesters
+        .filter((courseSemester) => courseSemester.cursoId === courseIdInFocus)
+        .sort((left, right) => left.numero - right.numero);
+
+      if (!selectedCourseSemesterId && semestersInFocus.length > 0) {
+        setSelectedCourseSemesterId(semestersInFocus[0].id);
       }
 
       if (!selectedCourseIds.length && platformData.cursos.length > 0) {
@@ -351,11 +447,21 @@ export function AdminDashboardClient({
     return () => {
       isMounted = false;
     };
-  }, [router, userEmail, dataInicio, disciplinaId, professorId, selectedCourseIds.length, cursoBaseId]);
+  }, [
+    router,
+    userEmail,
+    dataInicio,
+    disciplinaId,
+    professorId,
+    selectedCourseIds.length,
+    cursoBaseId,
+    selectedCourseSemesterId,
+  ]);
 
   async function reloadPlatformData() {
     const platformData = await loadPlatformData();
     setCursos(platformData.cursos);
+    setCourseSemesters(platformData.courseSemesters);
     setProfessores(platformData.professores);
     setDisciplinas(platformData.disciplinas);
     setEventos(platformData.eventosFeriados);
@@ -375,6 +481,7 @@ export function AdminDashboardClient({
   function resetEditingStates() {
     setEditingCursoId(null);
     setEditingProfessorId(null);
+    setEditingSemesterId(null);
     setEditingDisciplinaId(null);
     setEditingEventoId(null);
   }
@@ -395,6 +502,15 @@ export function AdminDashboardClient({
     setEditProfessorCidade(professor.cidadeOrigem ?? '');
     setEditProfessorEspecialidade(professor.especialidade ?? '');
     setProfessorMessage('');
+  }
+
+  function startSemesterEdit(courseSemester: CursoSemestre) {
+    resetEditingStates();
+    setEditingSemesterId(courseSemester.id);
+    setEditSemesterNumero(String(courseSemester.numero));
+    setEditSemesterNome(courseSemester.nome ?? '');
+    setEditSemesterAtivo(courseSemester.ativo);
+    setSemesterMessage('');
   }
 
   function startDisciplinaEdit(disciplina: Disciplina) {
@@ -493,6 +609,123 @@ export function AdminDashboardClient({
     setEditingProfessorId(null);
     setProfessorMessage('Professor atualizado com sucesso.');
     setStatusMessage('Professor atualizado com sucesso.');
+  }
+
+  async function handleCreateSemester(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (!cursoBaseId) {
+      setSemesterMessage('Selecione um curso em foco para cadastrar o semestre.');
+      return;
+    }
+
+    if (Number(novoSemesterNumero) <= 0) {
+      setSemesterMessage('Informe um numero de semestre valido.');
+      return;
+    }
+
+    setSubmittingSemester(true);
+    setSemesterMessage('Salvando semestre...');
+
+    const { data, error } = await supabase
+      .from('curso_semestres')
+      .insert({
+        ativo: novoSemesterAtivo,
+        curso_id: cursoBaseId,
+        nome: novoSemesterNome.trim() || null,
+        numero: Number(novoSemesterNumero),
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      setSubmittingSemester(false);
+      setSemesterMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    setNovoSemesterNumero('1');
+    setNovoSemesterNome('');
+    setNovoSemesterAtivo(true);
+    await reloadPlatformData();
+    if (data?.id) {
+      setSelectedCourseSemesterId(data.id);
+    }
+    setSubmittingSemester(false);
+    setSemesterMessage('Semestre cadastrado com sucesso.');
+    setStatusMessage('Semestre cadastrado com sucesso.');
+  }
+
+  async function handleUpdateSemester(courseSemesterId: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    if (Number(editSemesterNumero) <= 0) {
+      setSemesterMessage('Informe um numero de semestre valido.');
+      return;
+    }
+
+    setSavingSemesterId(courseSemesterId);
+    setSemesterMessage('Atualizando semestre...');
+
+    const { error } = await supabase
+      .from('curso_semestres')
+      .update({
+        ativo: editSemesterAtivo,
+        nome: editSemesterNome.trim() || null,
+        numero: Number(editSemesterNumero),
+      })
+      .eq('id', courseSemesterId);
+
+    if (error) {
+      setSavingSemesterId(null);
+      setSemesterMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setSavingSemesterId(null);
+    setEditingSemesterId(null);
+    setSemesterMessage('Semestre atualizado com sucesso.');
+    setStatusMessage('Semestre atualizado com sucesso.');
+  }
+
+  async function handleDeleteSemester(courseSemesterId: string) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return;
+    }
+
+    const confirmed = window.confirm('Deseja excluir este semestre do curso?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingKey(`curso_semestres:${courseSemesterId}`);
+    const { error } = await supabase
+      .from('curso_semestres')
+      .delete()
+      .eq('id', courseSemesterId);
+
+    if (error) {
+      setDeletingKey(null);
+      setSemesterMessage(formatRequestMessage(error.message));
+      return;
+    }
+
+    await reloadPlatformData();
+    setDeletingKey(null);
+    setEditingSemesterId(null);
+    setSemesterMessage('Semestre excluido com sucesso.');
+    setStatusMessage('Semestre excluido com sucesso.');
   }
 
   async function handleUpdateDisciplina(disciplinaIdToUpdate: string) {
@@ -900,8 +1133,8 @@ export function AdminDashboardClient({
       return;
     }
 
-    if (Number(semestre) <= 0) {
-      setStatusMessage('Informe o semestre da turma para organizar o calendario do curso.');
+    if (!selectedCourseSemester) {
+      setStatusMessage('Cadastre e selecione um semestre do curso antes de montar o calendario.');
       return;
     }
 
@@ -949,15 +1182,9 @@ export function AdminDashboardClient({
       return;
     }
 
-    const professorConflict = modulos.find(
-      (modulo) =>
-        modulo.professorId === professorId &&
-        rangesOverlap(modulo.dataInicio, modulo.dataFim, dataInicio, dataFim)
-    );
-
-    if (professorConflict) {
+    if (professorConflictDetails) {
       setStatusMessage(
-        'O professor selecionado ja possui um modulo cadastrado nessa semana.'
+        `${professorConflictDetails.professorNome} ja esta alocado em ${professorConflictDetails.cursoLabel}, ${professorConflictDetails.semestreLabel}, sala ${professorConflictDetails.sala}, no periodo ${professorConflictDetails.periodo}.`
       );
       return;
     }
@@ -993,7 +1220,8 @@ export function AdminDashboardClient({
         professor_id: professorId || null,
         data_inicio: dataInicio,
         data_fim: dataFim,
-        semestre: Number(semestre),
+        curso_semestre_id: selectedCourseSemester.id,
+        semestre: selectedCourseSemester.numero,
         sala: sala || null,
         observacoes: observacoes || null,
       })
@@ -1021,7 +1249,7 @@ export function AdminDashboardClient({
 
     setDataInicio(getNextSuggestedModuleStartDate(modulos, eventos, addDays(inicio, 7)));
     setDataFim('');
-    setSemestre('1');
+    setSelectedCourseSemesterId(selectedCourseSemester.id);
     setCargaHorariaDiaria('4');
     setSelectedWeekDays([1, 2, 3, 4, 5]);
     setSelectedCourseIds(cursoBaseId ? [cursoBaseId] : []);
@@ -1069,6 +1297,10 @@ export function AdminDashboardClient({
   function handleCursoBaseChange(value: string) {
     setCursoBaseId(value);
     setSelectedCourseIds(value ? [value] : []);
+    const nextCourseSemesters = courseSemesters
+      .filter((courseSemester) => courseSemester.cursoId === value)
+      .sort((left, right) => left.numero - right.numero);
+    setSelectedCourseSemesterId(nextCourseSemesters[0]?.id ?? '');
     const proximasDisciplinas = value
       ? disciplinas.filter((disciplina) => disciplina.courseIds.includes(value))
       : disciplinas;
@@ -1273,12 +1505,20 @@ export function AdminDashboardClient({
                   type="date"
                   placeholder=""
                 />
-                <AdminInput
-                  label="Semestre da turma"
-                  value={semestre}
-                  onChange={setSemestre}
-                  type="number"
-                  placeholder="1"
+                <AdminSelect
+                  label="Turma / semestre"
+                  value={selectedCourseSemester?.id ?? ''}
+                  onChange={setSelectedCourseSemesterId}
+                  options={
+                    courseSemestersForSelectedCourse.length
+                      ? courseSemestersForSelectedCourse.map((courseSemester) => ({
+                          label: `${getSemesterLabel(courseSemester.numero)}${
+                            courseSemester.nome ? ` - ${courseSemester.nome}` : ''
+                          }${courseSemester.ativo ? '' : ' (inativo)'}`,
+                          value: courseSemester.id,
+                        }))
+                      : [{ label: 'Cadastre um semestre para este curso', value: '' }]
+                  }
                 />
                 <AdminInput
                   label="Carga diaria por aula"
@@ -1349,7 +1589,10 @@ export function AdminDashboardClient({
                             : 'nao definida'}
                         </span>
                         <span className="rounded-full bg-white px-3 py-1 text-xs text-[#5d6671]">
-                          Turma: {semestre || '--'}º semestre
+                          Turma:{' '}
+                          {selectedCourseSemester
+                            ? getSemesterLabel(selectedCourseSemester.numero)
+                            : '--'}
                         </span>
                       </div>
                       {disciplinaProgress ? (
@@ -1402,6 +1645,20 @@ export function AdminDashboardClient({
                     </p>
                   )}
                 </div>
+                {professorConflictDetails ? (
+                  <div className="md:col-span-2 rounded-[20px] border border-[#f3d8d8] bg-[#fff6f6] px-4 py-4 text-sm text-[#8a3434]">
+                    <p className="font-medium">Conflito de professor detectado</p>
+                    <p className="mt-2">
+                      {professorConflictDetails.professorNome} ja possui aula em{' '}
+                      {professorConflictDetails.cursoLabel}, {professorConflictDetails.semestreLabel},
+                      sala {professorConflictDetails.sala}, no periodo{' '}
+                      {professorConflictDetails.periodo}.
+                    </p>
+                    <p className="mt-1">
+                      Ajuste a turma, a sala, o professor ou a data antes de salvar.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="md:col-span-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-[#4f4f59]">
@@ -1619,7 +1876,7 @@ export function AdminDashboardClient({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-2 md:grid-cols-4">
+              <div className="mt-5 grid gap-2 md:grid-cols-5">
                 {supportSummary.map((item) => (
                   <AdminSubViewButton
                     key={item.key}
@@ -1677,6 +1934,87 @@ export function AdminDashboardClient({
                           <AdminInput label="Nome" value={editCursoNome} onChange={setEditCursoNome} placeholder="Nome do curso" />
                           <AdminInput label="Carga total" value={editCursoCarga} onChange={setEditCursoCarga} type="number" placeholder="360" />
                           <AdminInput label="Cor" value={editCursoCor} onChange={setEditCursoCor} placeholder="#163B65" />
+                        </div>
+                      ) : null}
+                    </EditableItem>
+                  ))}
+                </EditableSection>
+                </>
+                ) : null}
+
+                {activeSupportSection === 'semestres' ? (
+                <>
+                <form onSubmit={handleCreateSemester} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
+                  <p className="text-sm font-semibold text-[#16161a]">Semestre do curso em foco</p>
+                  <div className="rounded-2xl border border-[#e5e9ef] bg-[#f8fafc] px-4 py-3 text-sm text-[#5d6671]">
+                    {selectedCurso
+                      ? `Curso atual: ${selectedCurso.nome}`
+                      : 'Selecione um curso em foco para gerenciar os semestres.'}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <AdminInput
+                      label="Numero"
+                      value={novoSemesterNumero}
+                      onChange={setNovoSemesterNumero}
+                      type="number"
+                      placeholder="1"
+                    />
+                    <AdminInput
+                      label="Nome interno"
+                      value={novoSemesterNome}
+                      onChange={setNovoSemesterNome}
+                      placeholder="Turma A / Entrada 2026"
+                    />
+                  </div>
+                  <AdminToggle
+                    label="Semestre ativo"
+                    checked={novoSemesterAtivo}
+                    onChange={setNovoSemesterAtivo}
+                    description="Semestres ativos ficam disponiveis no planejamento do cronograma."
+                  />
+                  <InlineMessage message={semesterMessage} />
+                  <SmallSubmit submitting={submittingSemester} label="Cadastrar semestre" />
+                </form>
+                <EditableSection
+                  title={`Semestres de ${selectedCurso?.nome ?? 'curso selecionado'}`}
+                  emptyMessage="Nenhum semestre cadastrado para este curso."
+                >
+                  {courseSemestersForSelectedCourse.map((courseSemester) => (
+                    <EditableItem
+                      key={courseSemester.id}
+                      title={courseSemester.nome ?? getSemesterLabel(courseSemester.numero)}
+                      subtitle={`${getSemesterLabel(courseSemester.numero)} · ${courseSemester.ativo ? 'Ativo' : 'Inativo'}`}
+                      editing={editingSemesterId === courseSemester.id}
+                      saving={savingSemesterId === courseSemester.id}
+                      deleting={deletingKey === `curso_semestres:${courseSemester.id}`}
+                      onEdit={() => startSemesterEdit(courseSemester)}
+                      onCancel={() => setEditingSemesterId(null)}
+                      onSave={() => handleUpdateSemester(courseSemester.id)}
+                      onDelete={() => handleDeleteSemester(courseSemester.id)}
+                    >
+                      {editingSemesterId === courseSemester.id ? (
+                        <div className="grid gap-3">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <AdminInput
+                              label="Numero"
+                              value={editSemesterNumero}
+                              onChange={setEditSemesterNumero}
+                              type="number"
+                              placeholder="1"
+                            />
+                            <AdminInput
+                              label="Nome interno"
+                              value={editSemesterNome}
+                              onChange={setEditSemesterNome}
+                              placeholder="Turma A / Entrada 2026"
+                            />
+                          </div>
+                          <AdminToggle
+                            label="Semestre ativo"
+                            checked={editSemesterAtivo}
+                            onChange={setEditSemesterAtivo}
+                            description="Desative para ocultar este semestre do seletor de planejamento."
+                          />
                         </div>
                       ) : null}
                     </EditableItem>

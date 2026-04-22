@@ -5,6 +5,14 @@ export type Curso = {
   corHex: string | null;
 };
 
+export type CursoSemestre = {
+  ativo: boolean;
+  cursoId: string;
+  id: string;
+  nome: string | null;
+  numero: number;
+};
+
 export type Professor = {
   id: string;
   nome: string;
@@ -29,16 +37,17 @@ export type EventoFeriado = {
 
 export type CronogramaModulo = {
   cargaHorariaDiaria: number | null;
-  id: string;
-  disciplinaId: string;
-  diasSemana: number[];
-  semestre: number | null;
-  professorId: string | null;
-  dataInicio: string;
-  dataFim: string;
   cargaHorariaSemanal: number;
-  sala: string | null;
+  cursoSemestreId: string | null;
+  dataFim: string;
+  dataInicio: string;
+  diasSemana: number[];
+  disciplinaId: string;
+  id: string;
   observacoes: string | null;
+  professorId: string | null;
+  sala: string | null;
+  semestre: number | null;
 };
 
 export type Intercurso = {
@@ -52,12 +61,12 @@ export type DisciplinaCurso = {
 };
 
 export type CronogramaPublicoCard = {
-  id: string;
   cargaHorariaSemanal: number;
   cursos: Curso[];
   dataFim: string;
   dataInicio: string;
   disciplinaNome: string;
+  id: string;
   observacoes: string | null;
   professorCidadeOrigem: string | null;
   professorNome: string | null;
@@ -83,6 +92,30 @@ export const fallbackCursos: Curso[] = [
     nome: 'Controladoria e Financas',
     cargaHorariaTotal: 420,
     corHex: '#6F7D8C',
+  },
+];
+
+export const fallbackCursoSemestres: CursoSemestre[] = [
+  {
+    ativo: true,
+    cursoId: 'curso-gti',
+    id: 'curso-gti-sem-1',
+    nome: '1o semestre',
+    numero: 1,
+  },
+  {
+    ativo: true,
+    cursoId: 'curso-gti',
+    id: 'curso-gti-sem-2',
+    nome: '2o semestre',
+    numero: 2,
+  },
+  {
+    ativo: true,
+    cursoId: 'curso-gti',
+    id: 'curso-gti-sem-3',
+    nome: '3o semestre',
+    numero: 3,
   },
 ];
 
@@ -150,41 +183,44 @@ export const fallbackModulos: CronogramaModulo[] = [
   {
     id: 'modulo-1',
     cargaHorariaDiaria: 4,
-    disciplinaId: 'disc-apc',
-    diasSemana: [1, 2, 3, 4, 5],
-    semestre: 1,
-    professorId: 'prof-andre',
-    dataInicio: '2026-04-20',
-    dataFim: '2026-04-24',
     cargaHorariaSemanal: 20,
-    sala: 'Sala 101',
+    cursoSemestreId: 'curso-gti-sem-1',
+    dataFim: '2026-04-24',
+    dataInicio: '2026-04-20',
+    diasSemana: [1, 2, 3, 4, 5],
+    disciplinaId: 'disc-apc',
     observacoes: 'Primeiro bloco do modulo',
+    professorId: 'prof-andre',
+    sala: 'Sala 101',
+    semestre: 1,
   },
   {
     id: 'modulo-2',
     cargaHorariaDiaria: 4,
-    disciplinaId: 'disc-fso',
-    diasSemana: [1, 2, 3, 4, 5],
-    semestre: 2,
-    professorId: 'prof-luiza',
-    dataInicio: '2026-04-27',
-    dataFim: '2026-05-01',
     cargaHorariaSemanal: 20,
-    sala: 'Sala 205',
+    cursoSemestreId: 'curso-gti-sem-2',
+    dataFim: '2026-05-01',
+    dataInicio: '2026-04-27',
+    diasSemana: [1, 2, 3, 4, 5],
+    disciplinaId: 'disc-fso',
     observacoes: 'Modulo compartilhado entre cursos',
+    professorId: 'prof-luiza',
+    sala: 'Sala 205',
+    semestre: 2,
   },
   {
     id: 'modulo-3',
     cargaHorariaDiaria: 4,
-    disciplinaId: 'disc-ic',
-    diasSemana: [1, 2, 3, 4, 5],
-    semestre: 3,
-    professorId: 'prof-carla',
-    dataInicio: '2026-05-18',
-    dataFim: '2026-05-22',
     cargaHorariaSemanal: 20,
-    sala: 'Laboratorio 2',
+    cursoSemestreId: null,
+    dataFim: '2026-05-22',
+    dataInicio: '2026-05-18',
+    diasSemana: [1, 2, 3, 4, 5],
+    disciplinaId: 'disc-ic',
     observacoes: 'Bloco posterior ao evento institucional',
+    professorId: 'prof-carla',
+    sala: 'Laboratorio 2',
+    semestre: 3,
   },
 ];
 
@@ -212,8 +248,8 @@ export function getNextWeekRange(referenceDate = new Date()) {
   endDate.setHours(23, 59, 59, 999);
 
   return {
-    start: startDate,
     end: endDate,
+    start: startDate,
   };
 }
 
