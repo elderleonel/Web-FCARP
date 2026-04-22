@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, GraduationCap, MapPin, Users } from 'lucide-react';
+import { CalendarDays, GraduationCap, Users } from 'lucide-react';
 import { loadPlatformData } from '@/lib/unisched-repository';
 import {
   buildCronogramaCards,
@@ -268,11 +268,6 @@ export function ConsultaPublicaClient() {
                               icon={<Users className="h-4 w-4" />}
                               label="Professor"
                               value={card.professorNome ?? 'Nao definido'}
-                            />
-                            <InfoTile
-                              icon={<MapPin className="h-4 w-4" />}
-                              label="Origem"
-                              value={card.professorCidadeOrigem ?? 'Nao informada'}
                             />
                             <InfoTile
                               icon={<GraduationCap className="h-4 w-4" />}

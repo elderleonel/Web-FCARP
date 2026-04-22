@@ -25,6 +25,7 @@ import {
   buildCronogramaCards,
   formatDateRange,
   getCourseProgress,
+  getCourseSemesterProgress,
   getDisciplinaProgress,
   getNextSuggestedModuleStartDate,
   getSemesterLabel,
@@ -138,15 +139,14 @@ export function AdminDashboardClient({
   const [novoCursoNome, setNovoCursoNome] = useState('');
   const [novoCursoCarga, setNovoCursoCarga] = useState('360');
   const [novoCursoCor, setNovoCursoCor] = useState('#163B65');
+  const [duplicarSemestresNovoCurso, setDuplicarSemestresNovoCurso] = useState(true);
   const [editCursoNome, setEditCursoNome] = useState('');
   const [editCursoCarga, setEditCursoCarga] = useState('360');
   const [editCursoCor, setEditCursoCor] = useState('#163B65');
 
   const [novoProfessorNome, setNovoProfessorNome] = useState('');
-  const [novoProfessorCidade, setNovoProfessorCidade] = useState('');
   const [novoProfessorEspecialidade, setNovoProfessorEspecialidade] = useState('');
   const [editProfessorNome, setEditProfessorNome] = useState('');
-  const [editProfessorCidade, setEditProfessorCidade] = useState('');
   const [editProfessorEspecialidade, setEditProfessorEspecialidade] = useState('');
 
   const [novoSemesterNumero, setNovoSemesterNumero] = useState('1');
@@ -298,6 +298,14 @@ export function AdminDashboardClient({
   const previewRemainingHours = disciplinaProgress
     ? Math.max(disciplinaProgress.total - disciplinaProgress.scheduled - previewWeeklyHours, 0)
     : null;
+  const semesterProgressCards = useMemo(
+    () =>
+      courseSemestersForSelectedCourse.map((courseSemester) => ({
+        courseSemester,
+        progress: getCourseSemesterProgress(courseSemester, modulos, disciplinasDisponiveis),
+      })),
+    [courseSemestersForSelectedCourse, modulos, disciplinasDisponiveis]
+  );
   const professorConflictDetails = useMemo(() => {
     if (!professorId || !dataInicio || !dataFim) {
       return null;
@@ -342,6 +350,52 @@ export function AdminDashboardClient({
     modulos,
     professorId,
     professores,
+  ]);
+  const roomConflictDetails = useMemo(() => {
+    if (!sala.trim() || !dataInicio || !dataFim) {
+      return null;
+    }
+
+    const normalizedRoom = sala.trim().toLowerCase();
+    const conflict = modulos.find(
+      (modulo) =>
+        (modulo.sala ?? '').trim().toLowerCase() === normalizedRoom &&
+        rangesOverlap(modulo.dataInicio, modulo.dataFim, dataInicio, dataFim)
+    );
+
+    if (!conflict) {
+      return null;
+    }
+
+    const professor = professores.find((item) => item.id === conflict.professorId) ?? null;
+    const disciplina = disciplinas.find((item) => item.id === conflict.disciplinaId) ?? null;
+    const conflictCourses = intercursos
+      .filter((item) => item.cronogramaModuloId === conflict.id)
+      .map((item) => cursos.find((curso) => curso.id === item.cursoId)?.nome ?? null)
+      .filter((value): value is string => Boolean(value));
+    const conflictSemester =
+      courseSemesters.find((item) => item.id === conflict.cursoSemestreId)?.numero ??
+      conflict.semestre ??
+      null;
+
+    return {
+      cursoLabel: conflictCourses.length ? conflictCourses.join(', ') : 'Curso nao identificado',
+      disciplinaNome: disciplina?.nome ?? 'Disciplina nao identificada',
+      periodo: formatDateRange(conflict.dataInicio, conflict.dataFim),
+      professorNome: professor?.nome ?? 'Professor nao identificado',
+      sala: conflict.sala ?? 'Sala nao informada',
+      semestreLabel: getSemesterLabel(conflictSemester),
+    };
+  }, [
+    courseSemesters,
+    cursos,
+    dataFim,
+    dataInicio,
+    disciplinas,
+    intercursos,
+    modulos,
+    professores,
+    sala,
   ]);
   const supportSummary = useMemo(
     () => [
@@ -499,7 +553,6 @@ export function AdminDashboardClient({
     resetEditingStates();
     setEditingProfessorId(professor.id);
     setEditProfessorNome(professor.nome);
-    setEditProfessorCidade(professor.cidadeOrigem ?? '');
     setEditProfessorEspecialidade(professor.especialidade ?? '');
     setProfessorMessage('');
   }
@@ -593,7 +646,6 @@ export function AdminDashboardClient({
       .from('professores')
       .update({
         nome: editProfessorNome.trim(),
-        cidade_origem: editProfessorCidade || null,
         especialidade: editProfessorEspecialidade || null,
       })
       .eq('id', professorIdToUpdate);
@@ -912,25 +964,63 @@ export function AdminDashboardClient({
 
     setSubmittingCurso(true);
     setCourseMessage('Salvando curso...');
-    const { error } = await supabase.from('cursos').insert({
-      nome: novoCursoNome.trim(),
-      carga_horaria_total: Number(novoCursoCarga),
-      cor_hex: novoCursoCor || null,
-    });
+    const { data: newCourse, error } = await supabase
+      .from('cursos')
+      .insert({
+        nome: novoCursoNome.trim(),
+        carga_horaria_total: Number(novoCursoCarga),
+        cor_hex: novoCursoCor || null,
+      })
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !newCourse) {
       setSubmittingCurso(false);
-      setCourseMessage(formatRequestMessage(error.message));
+      setCourseMessage(formatRequestMessage(error?.message ?? 'Nao foi possivel salvar o curso.'));
       return;
+    }
+
+    if (duplicarSemestresNovoCurso && selectedCurso) {
+      const sourceSemesters = courseSemesters
+        .filter((courseSemester) => courseSemester.cursoId === selectedCurso.id)
+        .sort((left, right) => left.numero - right.numero);
+
+      if (sourceSemesters.length) {
+        const { error: copySemestersError } = await supabase
+          .from('curso_semestres')
+          .insert(
+            sourceSemesters.map((courseSemester) => ({
+              ativo: courseSemester.ativo,
+              curso_id: newCourse.id,
+              nome: courseSemester.nome,
+              numero: courseSemester.numero,
+            }))
+          );
+
+        if (copySemestersError) {
+          setSubmittingCurso(false);
+          setCourseMessage(formatRequestMessage(copySemestersError.message));
+          return;
+        }
+      }
     }
 
     setNovoCursoNome('');
     setNovoCursoCarga('360');
     setNovoCursoCor('#163B65');
+    setDuplicarSemestresNovoCurso(true);
     await reloadPlatformData();
     setSubmittingCurso(false);
-    setCourseMessage('Curso cadastrado com sucesso.');
-    setStatusMessage('Curso cadastrado com sucesso.');
+    setCourseMessage(
+      duplicarSemestresNovoCurso && selectedCurso
+        ? 'Curso cadastrado com sucesso e estrutura de semestres duplicada.'
+        : 'Curso cadastrado com sucesso.'
+    );
+    setStatusMessage(
+      duplicarSemestresNovoCurso && selectedCurso
+        ? 'Curso cadastrado com sucesso e estrutura de semestres duplicada.'
+        : 'Curso cadastrado com sucesso.'
+    );
   }
 
   async function handleCreateProfessor(event: React.FormEvent<HTMLFormElement>) {
@@ -950,7 +1040,6 @@ export function AdminDashboardClient({
     setProfessorMessage('Salvando professor...');
     const { error } = await supabase.from('professores').insert({
       nome: novoProfessorNome.trim(),
-      cidade_origem: novoProfessorCidade || null,
       especialidade: novoProfessorEspecialidade || null,
     });
 
@@ -961,7 +1050,6 @@ export function AdminDashboardClient({
     }
 
     setNovoProfessorNome('');
-    setNovoProfessorCidade('');
     setNovoProfessorEspecialidade('');
     await reloadPlatformData();
     setSubmittingProfessor(false);
@@ -1185,6 +1273,13 @@ export function AdminDashboardClient({
     if (professorConflictDetails) {
       setStatusMessage(
         `${professorConflictDetails.professorNome} ja esta alocado em ${professorConflictDetails.cursoLabel}, ${professorConflictDetails.semestreLabel}, sala ${professorConflictDetails.sala}, no periodo ${professorConflictDetails.periodo}.`
+      );
+      return;
+    }
+
+    if (roomConflictDetails) {
+      setStatusMessage(
+        `A sala ${roomConflictDetails.sala} ja esta ocupada em ${roomConflictDetails.cursoLabel}, ${roomConflictDetails.semestreLabel}, com ${roomConflictDetails.professorNome}, no periodo ${roomConflictDetails.periodo}.`
       );
       return;
     }
@@ -1659,6 +1754,20 @@ export function AdminDashboardClient({
                     </p>
                   </div>
                 ) : null}
+                {roomConflictDetails ? (
+                  <div className="md:col-span-2 rounded-[20px] border border-[#f3e2cf] bg-[#fff8ef] px-4 py-4 text-sm text-[#8a5a1f]">
+                    <p className="font-medium">Conflito de sala detectado</p>
+                    <p className="mt-2">
+                      A sala {roomConflictDetails.sala} ja esta ocupada em{' '}
+                      {roomConflictDetails.cursoLabel}, {roomConflictDetails.semestreLabel},
+                      com {roomConflictDetails.professorNome}, no periodo{' '}
+                      {roomConflictDetails.periodo}.
+                    </p>
+                    <p className="mt-1">
+                      Escolha outra sala ou reorganize a agenda antes de salvar.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="md:col-span-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-medium text-[#4f4f59]">
@@ -1912,6 +2021,16 @@ export function AdminDashboardClient({
                     onChange={setNovoCursoCor}
                     placeholder="#163B65"
                   />
+                  <AdminToggle
+                    label="Duplicar semestres do curso em foco"
+                    checked={duplicarSemestresNovoCurso}
+                    onChange={setDuplicarSemestresNovoCurso}
+                    description={
+                      selectedCurso
+                        ? `Copia a estrutura de semestres de ${selectedCurso.nome} para o novo curso.`
+                        : 'Selecione um curso em foco para usar sua estrutura como base.'
+                    }
+                  />
                   <InlineMessage message={courseMessage} />
                   <SmallSubmit submitting={submittingCurso} label="Cadastrar curso" />
                 </form>
@@ -2108,12 +2227,6 @@ export function AdminDashboardClient({
                     placeholder="Prof. Andre Campos"
                   />
                   <AdminInput
-                    label="Cidade de origem"
-                    value={novoProfessorCidade}
-                    onChange={setNovoProfessorCidade}
-                    placeholder="Cuiaba"
-                  />
-                  <AdminInput
                     label="Especialidade"
                     value={novoProfessorEspecialidade}
                     onChange={setNovoProfessorEspecialidade}
@@ -2137,9 +2250,8 @@ export function AdminDashboardClient({
                       onDelete={() => handleDeleteRegistro('professores', professor.id, 'Professor')}
                     >
                       {editingProfessorId === professor.id ? (
-                        <div className="grid gap-3 md:grid-cols-3">
+                        <div className="grid gap-3 md:grid-cols-2">
                           <AdminInput label="Nome" value={editProfessorNome} onChange={setEditProfessorNome} placeholder="Nome do professor" />
-                          <AdminInput label="Cidade de origem" value={editProfessorCidade} onChange={setEditProfessorCidade} placeholder="Cidade" />
                           <AdminInput label="Especialidade" value={editProfessorEspecialidade} onChange={setEditProfessorEspecialidade} placeholder="Especialidade" />
                         </div>
                       ) : null}
@@ -2285,6 +2397,55 @@ export function AdminDashboardClient({
                 ) : (
                   <div className="rounded-[22px] bg-white px-4 py-4 text-sm text-[#7a7a84]">
                     Cadastre a carga horaria nas disciplinas para acompanhar o progresso por componente.
+                  </div>
+                )}
+              </div>
+            </section>
+            ) : null}
+
+            {(activeView === 'visao' || activeView === 'calendario') ? (
+            <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
+              <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
+                Visao por semestre
+              </h2>
+              <p className="mt-2 text-sm text-[#6b6b74]">
+                {selectedCurso
+                  ? `Distribuicao de carga planejada por semestre em ${selectedCurso.nome}.`
+                  : 'Selecione um curso para acompanhar a distribuicao por semestre.'}
+              </p>
+              <div className="mt-4 space-y-3">
+                {semesterProgressCards.length ? (
+                  semesterProgressCards.map(({ courseSemester, progress }) => (
+                    <div key={courseSemester.id} className="rounded-[22px] bg-white px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-[#16161a]">
+                            {courseSemester.nome ?? getSemesterLabel(courseSemester.numero)}
+                          </p>
+                          <p className="mt-1 text-xs text-[#7a7a84]">
+                            {progress.totalPlanejado}h planejadas de {progress.totalPrevisto}h previstas
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-[#5b61ff]">
+                          {progress.percentual}%
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 rounded-full bg-[#edf0f3]">
+                        <div
+                          className="h-2 rounded-full bg-[linear-gradient(90deg,#163B65,#2C6E91)]"
+                          style={{ width: `${progress.percentual}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-3">
+                        <MetricPill label="Planejada" value={`${progress.totalPlanejado}h`} />
+                        <MetricPill label="Pendente" value={`${progress.pendente}h`} />
+                        <MetricPill label="Modulos" value={String(progress.modulos)} />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[22px] bg-white px-4 py-4 text-sm text-[#7a7a84]">
+                    Cadastre semestres para o curso e distribua os modulos para acompanhar a carga por etapa.
                   </div>
                 )}
               </div>

@@ -68,7 +68,6 @@ export type CronogramaPublicoCard = {
   disciplinaNome: string;
   id: string;
   observacoes: string | null;
-  professorCidadeOrigem: string | null;
   professorNome: string | null;
   sala: string | null;
   semestre: number | null;
@@ -322,7 +321,6 @@ export function buildCronogramaCards(
         dataInicio: modulo.dataInicio,
         disciplinaNome: disciplina?.nome ?? 'Disciplina nao identificada',
         observacoes: modulo.observacoes,
-        professorCidadeOrigem: professor?.cidadeOrigem ?? null,
         professorNome: professor?.nome ?? null,
         sala: modulo.sala,
         semestre: modulo.semestre,
@@ -450,6 +448,39 @@ export function getCourseProgress(
     percentual,
     totalAgendado,
     totalCurso: curso.cargaHorariaTotal,
+  };
+}
+
+export function getCourseSemesterProgress(
+  courseSemester: CursoSemestre,
+  modulos: CronogramaModulo[],
+  disciplinas: Disciplina[]
+) {
+  const semesterModules = modulos.filter(
+    (modulo) =>
+      modulo.cursoSemestreId === courseSemester.id ||
+      (!modulo.cursoSemestreId && modulo.semestre === courseSemester.numero)
+  );
+
+  const disciplineIds = new Set(semesterModules.map((modulo) => modulo.disciplinaId));
+  const totalPlanejado = semesterModules.reduce(
+    (sum, modulo) => sum + modulo.cargaHorariaSemanal,
+    0
+  );
+  const totalPrevisto = Array.from(disciplineIds).reduce((sum, disciplinaId) => {
+    const disciplina = disciplinas.find((item) => item.id === disciplinaId);
+    return sum + (disciplina?.cargaHorariaTotal ?? 0);
+  }, 0);
+  const pendente = Math.max(totalPrevisto - totalPlanejado, 0);
+  const percentual =
+    totalPrevisto > 0 ? Math.min(Math.round((totalPlanejado / totalPrevisto) * 100), 100) : 0;
+
+  return {
+    modulos: semesterModules.length,
+    pendente,
+    percentual,
+    totalPlanejado,
+    totalPrevisto,
   };
 }
 
