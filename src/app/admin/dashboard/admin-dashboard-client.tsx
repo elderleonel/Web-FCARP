@@ -27,6 +27,7 @@ import {
   getCourseProgress,
   getDisciplinaProgress,
   getNextSuggestedModuleStartDate,
+  getSemesterLabel,
   isDateWithinRange,
   rangesOverlap,
   type CronogramaModulo,
@@ -42,6 +43,7 @@ type AdminDashboardClientProps = {
 };
 
 type AdminView = 'visao' | 'calendario' | 'disciplinas' | 'apoio';
+type AdminSupportSection = 'cursos' | 'disciplinas' | 'professores' | 'eventos';
 
 const WEEKDAY_OPTIONS = [
   { label: 'Seg', value: 1 },
@@ -110,6 +112,8 @@ export function AdminDashboardClient({
   const [disciplinaMessage, setDisciplinaMessage] = useState('');
   const [eventoMessage, setEventoMessage] = useState('');
   const [activeView, setActiveView] = useState<AdminView>('visao');
+  const [activeSupportSection, setActiveSupportSection] =
+    useState<AdminSupportSection>('cursos');
   const [editingCursoId, setEditingCursoId] = useState<string | null>(null);
   const [editingProfessorId, setEditingProfessorId] = useState<string | null>(null);
   const [editingDisciplinaId, setEditingDisciplinaId] = useState<string | null>(null);
@@ -157,6 +161,7 @@ export function AdminDashboardClient({
   const [professorId, setProfessorId] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
+  const [semestre, setSemestre] = useState('1');
   const [cargaHorariaDiaria, setCargaHorariaDiaria] = useState('4');
   const [sala, setSala] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -257,6 +262,15 @@ export function AdminDashboardClient({
   const previewRemainingHours = disciplinaProgress
     ? Math.max(disciplinaProgress.total - disciplinaProgress.scheduled - previewWeeklyHours, 0)
     : null;
+  const supportSummary = useMemo(
+    () => [
+      { key: 'cursos' as const, label: 'Cursos', value: String(cursos.length) },
+      { key: 'disciplinas' as const, label: 'Disciplinas', value: String(disciplinas.length) },
+      { key: 'professores' as const, label: 'Professores', value: String(professores.length) },
+      { key: 'eventos' as const, label: 'Bloqueios', value: String(eventos.length) },
+    ],
+    [cursos.length, disciplinas.length, professores.length, eventos.length]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -886,6 +900,11 @@ export function AdminDashboardClient({
       return;
     }
 
+    if (Number(semestre) <= 0) {
+      setStatusMessage('Informe o semestre da turma para organizar o calendario do curso.');
+      return;
+    }
+
     if (!dataFim) {
       setStatusMessage('Informe a data final da etapa da disciplina.');
       return;
@@ -974,6 +993,7 @@ export function AdminDashboardClient({
         professor_id: professorId || null,
         data_inicio: dataInicio,
         data_fim: dataFim,
+        semestre: Number(semestre),
         sala: sala || null,
         observacoes: observacoes || null,
       })
@@ -1001,6 +1021,7 @@ export function AdminDashboardClient({
 
     setDataInicio(getNextSuggestedModuleStartDate(modulos, eventos, addDays(inicio, 7)));
     setDataFim('');
+    setSemestre('1');
     setCargaHorariaDiaria('4');
     setSelectedWeekDays([1, 2, 3, 4, 5]);
     setSelectedCourseIds(cursoBaseId ? [cursoBaseId] : []);
@@ -1139,7 +1160,7 @@ export function AdminDashboardClient({
           <div className="grid gap-2 md:grid-cols-4">
             <AdminViewButton
               active={activeView === 'visao'}
-              label="Visao do curso"
+              label="Resumo"
               onClick={() => setActiveView('visao')}
             />
             <AdminViewButton
@@ -1149,18 +1170,18 @@ export function AdminDashboardClient({
             />
             <AdminViewButton
               active={activeView === 'calendario'}
-              label="Calendario"
+              label="Planejamento"
               onClick={() => setActiveView('calendario')}
             />
             <AdminViewButton
               active={activeView === 'apoio'}
-              label="Apoio admin"
+              label="Cadastros"
               onClick={() => setActiveView('apoio')}
             />
           </div>
         </section>
 
-        <div className="mt-8 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className={`mt-8 grid gap-4 ${activeView === 'apoio' ? '' : 'xl:grid-cols-[1.15fr_0.85fr]'}`}>
           <div className="space-y-4">
             <section className="rounded-[28px] border border-[#e4e9f0] bg-[linear-gradient(135deg,#fcfdff,#f2f6fb)] p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1170,7 +1191,13 @@ export function AdminDashboardClient({
                     {selectedCurso?.nome ?? 'Selecione um curso para organizar o admin'}
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm text-[#5d6671]">
-                    O admin agora segue a ordem operacional do uso real: curso, disciplinas do curso, disciplinas intercurso e montagem do calendario.
+                    {activeView === 'calendario'
+                      ? 'Monte o cronograma com base no curso em foco e acompanhe a carga da disciplina.'
+                      : activeView === 'disciplinas'
+                        ? 'Revise o mapa de disciplinas regulares e intercurso do curso selecionado.'
+                        : activeView === 'apoio'
+                          ? 'Gerencie os cadastros base do sistema sem misturar tudo na mesma tela.'
+                          : 'Tenha uma leitura unica do curso antes de editar disciplinas ou montar modulos.'}
                   </p>
                 </div>
                 <div className="min-w-[280px] rounded-[24px] border border-white/80 bg-white/80 p-4">
@@ -1247,6 +1274,13 @@ export function AdminDashboardClient({
                   placeholder=""
                 />
                 <AdminInput
+                  label="Semestre da turma"
+                  value={semestre}
+                  onChange={setSemestre}
+                  type="number"
+                  placeholder="1"
+                />
+                <AdminInput
                   label="Carga diaria por aula"
                   value={cargaHorariaDiaria}
                   onChange={setCargaHorariaDiaria}
@@ -1313,6 +1347,9 @@ export function AdminDashboardClient({
                           {selectedDisciplina.cargaHorariaTotal
                             ? `${selectedDisciplina.cargaHorariaTotal}h`
                             : 'nao definida'}
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs text-[#5d6671]">
+                          Turma: {semestre || '--'}º semestre
                         </span>
                       </div>
                       {disciplinaProgress ? (
@@ -1577,12 +1614,26 @@ export function AdminDashboardClient({
                     Apoio administrativo
                   </h2>
                   <p className="text-sm text-[#6b6b74]">
-                    Cadastros gerais do sistema para cursos, disciplinas, professores e bloqueios institucionais.
+                    Escolha o cadastro que deseja editar. A tela mostra um bloco por vez.
                   </p>
                 </div>
               </div>
 
+              <div className="mt-5 grid gap-2 md:grid-cols-4">
+                {supportSummary.map((item) => (
+                  <AdminSubViewButton
+                    key={item.key}
+                    active={activeSupportSection === item.key}
+                    label={item.label}
+                    value={item.value}
+                    onClick={() => setActiveSupportSection(item.key)}
+                  />
+                ))}
+              </div>
+
               <div className="mt-5 grid gap-4">
+                {activeSupportSection === 'cursos' ? (
+                <>
                 <form onSubmit={handleCreateCurso} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo curso</p>
                   <AdminInput
@@ -1631,7 +1682,11 @@ export function AdminDashboardClient({
                     </EditableItem>
                   ))}
                 </EditableSection>
+                </>
+                ) : null}
 
+                {activeSupportSection === 'disciplinas' ? (
+                <>
                 <form onSubmit={handleCreateDisciplina} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Nova disciplina</p>
                   <AdminInput
@@ -1701,7 +1756,11 @@ export function AdminDashboardClient({
                     </EditableItem>
                   ))}
                 </EditableSection>
+                </>
+                ) : null}
 
+                {activeSupportSection === 'professores' ? (
+                <>
                 <form onSubmit={handleCreateProfessor} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Novo professor</p>
                   <AdminInput
@@ -1749,7 +1808,11 @@ export function AdminDashboardClient({
                     </EditableItem>
                   ))}
                 </EditableSection>
+                </>
+                ) : null}
 
+                {activeSupportSection === 'eventos' ? (
+                <>
                 <form onSubmit={handleCreateEvento} className="space-y-3 rounded-[24px] border border-[#ececf1] bg-white p-4">
                   <p className="text-sm font-semibold text-[#16161a]">Evento ou feriado</p>
                   <AdminInput
@@ -1809,11 +1872,14 @@ export function AdminDashboardClient({
                     </EditableItem>
                   ))}
                 </EditableSection>
+                </>
+                ) : null}
               </div>
             </section>
             ) : null}
           </div>
 
+          {activeView !== 'apoio' ? (
           <div className="space-y-4">
             {(activeView === 'visao' || activeView === 'calendario' || activeView === 'disciplinas') ? (
             <section className="rounded-[28px] bg-[linear-gradient(135deg,#111827,#1f2937)] p-5 text-white">
@@ -1887,7 +1953,7 @@ export function AdminDashboardClient({
             </section>
             ) : null}
 
-            {(activeView === 'visao' || activeView === 'apoio') ? (
+            {activeView === 'visao' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
                 Eventos e bloqueios
@@ -1925,7 +1991,7 @@ export function AdminDashboardClient({
                   <div key={card.id} className="rounded-[22px] bg-white px-4 py-4">
                     <p className="text-sm font-medium text-[#16161a]">{card.disciplinaNome}</p>
                     <p className="mt-1 text-xs text-[#7a7a84]">
-                      {formatDateRange(card.dataInicio, card.dataFim)}
+                      {getSemesterLabel(card.semestre)} · {formatDateRange(card.dataInicio, card.dataFim)}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {card.cursos.map((curso) => (
@@ -1955,6 +2021,7 @@ export function AdminDashboardClient({
             </section>
             ) : null}
           </div>
+          ) : null}
         </div>
       </div>
     </main>
@@ -2059,6 +2126,33 @@ function AdminViewButton({
       }`}
     >
       {label}
+    </button>
+  );
+}
+
+function AdminSubViewButton({
+  active,
+  label,
+  onClick,
+  value,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  value: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border px-4 py-3 text-left transition ${
+        active
+          ? 'border-[#163b65] bg-[#edf4fb] text-[#163b65]'
+          : 'border-[#e5e5ec] bg-white text-[#46505c] hover:bg-[#f8fafc]'
+      }`}
+    >
+      <p className="text-sm font-medium">{label}</p>
+      <p className="mt-1 text-xs opacity-75">{value} registros</p>
     </button>
   );
 }

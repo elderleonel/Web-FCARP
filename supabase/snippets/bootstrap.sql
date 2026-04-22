@@ -50,6 +50,7 @@ create table if not exists cronograma_modulos (
   carga_horaria_semanal integer not null check (carga_horaria_semanal > 0),
   carga_horaria_diaria integer check (carga_horaria_diaria > 0 and carga_horaria_diaria <= 4),
   dias_semana smallint[] default '{}',
+  semestre integer,
   sala text,
   observacoes text,
   constraint cronograma_data_ck check (data_fim >= data_inicio)
@@ -66,6 +67,9 @@ alter table cronograma_modulos
 
 alter table cronograma_modulos
   add column if not exists dias_semana smallint[] default '{}';
+
+alter table cronograma_modulos
+  add column if not exists semestre integer;
 
 alter table disciplinas
   drop constraint if exists disciplinas_carga_horaria_total_check;
@@ -93,6 +97,13 @@ alter table cronograma_modulos
       and dias_semana <@ array[1, 2, 3, 4, 5]::smallint[]
     )
   );
+
+alter table cronograma_modulos
+  drop constraint if exists cronograma_modulos_semestre_check;
+
+alter table cronograma_modulos
+  add constraint cronograma_modulos_semestre_check
+  check (semestre is null or semestre > 0);
 
 create table if not exists intercursos (
   cronograma_modulo_id uuid not null references cronograma_modulos(id) on delete cascade,

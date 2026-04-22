@@ -32,6 +32,7 @@ export type CronogramaModulo = {
   id: string;
   disciplinaId: string;
   diasSemana: number[];
+  semestre: number | null;
   professorId: string | null;
   dataInicio: string;
   dataFim: string;
@@ -61,6 +62,7 @@ export type CronogramaPublicoCard = {
   professorCidadeOrigem: string | null;
   professorNome: string | null;
   sala: string | null;
+  semestre: number | null;
 };
 
 export const fallbackCursos: Curso[] = [
@@ -150,6 +152,7 @@ export const fallbackModulos: CronogramaModulo[] = [
     cargaHorariaDiaria: 4,
     disciplinaId: 'disc-apc',
     diasSemana: [1, 2, 3, 4, 5],
+    semestre: 1,
     professorId: 'prof-andre',
     dataInicio: '2026-04-20',
     dataFim: '2026-04-24',
@@ -162,6 +165,7 @@ export const fallbackModulos: CronogramaModulo[] = [
     cargaHorariaDiaria: 4,
     disciplinaId: 'disc-fso',
     diasSemana: [1, 2, 3, 4, 5],
+    semestre: 2,
     professorId: 'prof-luiza',
     dataInicio: '2026-04-27',
     dataFim: '2026-05-01',
@@ -174,6 +178,7 @@ export const fallbackModulos: CronogramaModulo[] = [
     cargaHorariaDiaria: 4,
     disciplinaId: 'disc-ic',
     diasSemana: [1, 2, 3, 4, 5],
+    semestre: 3,
     professorId: 'prof-carla',
     dataInicio: '2026-05-18',
     dataFim: '2026-05-22',
@@ -284,12 +289,50 @@ export function buildCronogramaCards(
         professorCidadeOrigem: professor?.cidadeOrigem ?? null,
         professorNome: professor?.nome ?? null,
         sala: modulo.sala,
+        semestre: modulo.semestre,
       } satisfies CronogramaPublicoCard;
     })
     .sort(
       (left, right) =>
         new Date(left.dataInicio).getTime() - new Date(right.dataInicio).getTime()
     );
+}
+
+export function getSemesterLabel(semestre: number | null) {
+  if (!semestre || semestre <= 0) {
+    return 'Turma sem semestre definido';
+  }
+
+  return `${semestre}º semestre`;
+}
+
+export function groupCronogramaCardsBySemester(cards: CronogramaPublicoCard[]) {
+  const groups = new Map<number | null, CronogramaPublicoCard[]>();
+
+  for (const card of cards) {
+    const key = card.semestre ?? null;
+    const bucket = groups.get(key) ?? [];
+    bucket.push(card);
+    groups.set(key, bucket);
+  }
+
+  return Array.from(groups.entries())
+    .sort(([left], [right]) => {
+      if (left === null) {
+        return 1;
+      }
+
+      if (right === null) {
+        return -1;
+      }
+
+      return left - right;
+    })
+    .map(([semestre, items]) => ({
+      items,
+      label: getSemesterLabel(semestre),
+      semestre,
+    }));
 }
 
 export function getDisciplinaScheduledHours(

@@ -71,7 +71,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
     supabase
       .from('cronograma_modulos')
       .select(
-        'id, disciplina_id, professor_id, data_inicio, data_fim, carga_horaria_semanal, carga_horaria_diaria, dias_semana, sala, observacoes'
+        'id, disciplina_id, professor_id, data_inicio, data_fim, carga_horaria_semanal, carga_horaria_diaria, dias_semana, semestre, sala, observacoes'
       )
       .order('data_inicio', { ascending: true }),
     supabase
@@ -123,6 +123,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
         dataInicio: item.data_inicio,
         disciplinaId: item.disciplina_id,
         diasSemana: item.dias_semana ?? [],
+        semestre: item.semestre ?? null,
         observacoes: item.observacoes,
         professorId: item.professor_id,
         sala: item.sala,
@@ -178,6 +179,7 @@ export async function loadPlatformData(): Promise<PlatformData> {
       dataInicio: item.data_inicio,
       disciplinaId: item.disciplina_id,
       diasSemana: item.dias_semana ?? [],
+      semestre: item.semestre ?? null,
       observacoes: item.observacoes,
       professorId: item.professor_id,
       sala: item.sala,

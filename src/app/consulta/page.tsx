@@ -1,7 +1,5 @@
-'use server';
-
 import { redirect } from 'next/navigation';
 
-export default async function ConsultaPage() {
+export default function ConsultaPage() {
   redirect('/');
 }
