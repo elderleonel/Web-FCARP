@@ -10,7 +10,6 @@ import {
   Check,
   Edit3,
   GitBranch,
-  GraduationCap,
   LogOut,
   Plus,
   Save,
@@ -44,7 +43,7 @@ type AdminDashboardClientProps = {
   userEmail: string;
 };
 
-type AdminView = 'visao' | 'calendario' | 'disciplinas' | 'apoio';
+type AdminView = 'visao' | 'calendario' | 'apoio';
 type AdminSupportSection =
   | 'cursos'
   | 'semestres'
@@ -1484,16 +1483,11 @@ export function AdminDashboardClient({
         </div>
 
         <section className="mt-6 rounded-[28px] border border-[#e7ebf0] bg-white p-3">
-          <div className="grid gap-2 md:grid-cols-4">
+          <div className="grid gap-2 md:grid-cols-3">
             <AdminViewButton
               active={activeView === 'visao'}
               label="Resumo"
               onClick={() => setActiveView('visao')}
-            />
-            <AdminViewButton
-              active={activeView === 'disciplinas'}
-              label="Disciplinas"
-              onClick={() => setActiveView('disciplinas')}
             />
             <AdminViewButton
               active={activeView === 'calendario'}
@@ -1520,11 +1514,9 @@ export function AdminDashboardClient({
                   <p className="mt-2 max-w-2xl text-sm text-[#5d6671]">
                     {activeView === 'calendario'
                       ? 'Monte o cronograma com base no curso em foco e acompanhe a carga da disciplina.'
-                      : activeView === 'disciplinas'
-                        ? 'Revise o mapa de disciplinas regulares e intercurso do curso selecionado.'
-                        : activeView === 'apoio'
-                          ? 'Gerencie os cadastros base do sistema sem misturar tudo na mesma tela.'
-                          : 'Tenha uma leitura unica do curso antes de editar disciplinas ou montar modulos.'}
+                      : activeView === 'apoio'
+                        ? 'Gerencie os cadastros base do sistema sem misturar tudo na mesma tela.'
+                        : 'Tenha uma leitura unica do curso antes de editar disciplinas ou montar modulos.'}
                   </p>
                 </div>
                 <div className="min-w-[280px] rounded-[24px] border border-white/80 bg-white/80 p-4">
@@ -1583,7 +1575,7 @@ export function AdminDashboardClient({
                   value={disciplinaIdEfetiva}
                   onChange={handleDisciplinaChange}
                   options={disciplinasDisponiveis.map((item) => ({
-                    label: item.isIntercurso ? `${item.nome} · Intercurso` : item.nome,
+                    label: item.isIntercurso ? `${item.nome} Â· Intercurso` : item.nome,
                     value: item.id,
                   }))}
                 />
@@ -1829,145 +1821,6 @@ export function AdminDashboardClient({
             </section>
             ) : null}
 
-            {activeView === 'disciplinas' ? (
-            <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ecfff2] text-[#147a46]">
-                  <GraduationCap className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
-                    Mapa de disciplinas do curso
-                  </h2>
-                  <p className="text-sm text-[#6b6b74]">
-                    Revise rapidamente o que pertence ao curso em foco e o que entra como intercurso antes de montar o calendario.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4">
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <EditableSection
-                    title={`Disciplinas do curso ${selectedCurso?.nome ?? ''}`}
-                    emptyMessage="Nenhuma disciplina regular vinculada ao curso selecionado."
-                  >
-                    {disciplinasRegularesDoCurso.map((disciplina) => (
-                      <EditableItem
-                        key={disciplina.id}
-                        title={disciplina.nome}
-                        subtitle={
-                          disciplina.cargaHorariaTotal
-                            ? `${disciplina.cargaHorariaTotal}h no semestre`
-                            : 'Carga horaria nao definida'
-                        }
-                        editing={editingDisciplinaId === disciplina.id}
-                        saving={savingDisciplinaId === disciplina.id}
-                        deleting={deletingKey === `disciplinas:${disciplina.id}`}
-                        onEdit={() => startDisciplinaEdit(disciplina)}
-                        onCancel={() => setEditingDisciplinaId(null)}
-                        onSave={() => handleUpdateDisciplina(disciplina.id)}
-                        onDelete={() => handleDeleteRegistro('disciplinas', disciplina.id, 'Disciplina')}
-                      >
-                        {editingDisciplinaId === disciplina.id ? (
-                          <div className="grid gap-3">
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
-                              <AdminInput label="Carga horaria" value={editDisciplinaCarga} onChange={setEditDisciplinaCarga} type="number" placeholder="72" />
-                            </div>
-                            <AdminToggle
-                              label="Disciplina intercurso"
-                              checked={editDisciplinaIntercurso}
-                              onChange={setEditDisciplinaIntercurso}
-                              description="Quando ativa, a disciplina pode ser usada em varios cursos vinculados."
-                            />
-                            <CourseSelector
-                              courses={cursos}
-                              selectedCourseIds={editDisciplinaCourseIds}
-                              onToggle={(cursoId) => toggleDisciplinaCourseSelection(cursoId, 'edit')}
-                              label="Cursos vinculados"
-                            />
-                          </div>
-                        ) : (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {disciplina.courseIds.map((cursoId) => {
-                              const curso = cursos.find((item) => item.id === cursoId);
-                              return curso ? (
-                                <span
-                                  key={`${disciplina.id}-${curso.id}`}
-                                  className="rounded-full bg-[#eef4fb] px-3 py-1 text-xs text-[#163b65]"
-                                >
-                                  {curso.nome}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        )}
-                      </EditableItem>
-                    ))}
-                  </EditableSection>
-
-                  <EditableSection
-                    title={`Disciplinas intercurso de ${selectedCurso?.nome ?? ''}`}
-                    emptyMessage="Nenhuma disciplina intercurso vinculada ao curso selecionado."
-                  >
-                    {disciplinasIntercursoDoCurso.map((disciplina) => (
-                      <EditableItem
-                        key={disciplina.id}
-                        title={disciplina.nome}
-                        subtitle={
-                          disciplina.cargaHorariaTotal
-                            ? `${disciplina.cargaHorariaTotal}h no semestre · Intercurso`
-                            : 'Carga horaria nao definida · Intercurso'
-                        }
-                        editing={editingDisciplinaId === disciplina.id}
-                        saving={savingDisciplinaId === disciplina.id}
-                        deleting={deletingKey === `disciplinas:${disciplina.id}`}
-                        onEdit={() => startDisciplinaEdit(disciplina)}
-                        onCancel={() => setEditingDisciplinaId(null)}
-                        onSave={() => handleUpdateDisciplina(disciplina.id)}
-                        onDelete={() => handleDeleteRegistro('disciplinas', disciplina.id, 'Disciplina')}
-                      >
-                        {editingDisciplinaId === disciplina.id ? (
-                          <div className="grid gap-3">
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <AdminInput label="Nome" value={editDisciplinaNome} onChange={setEditDisciplinaNome} placeholder="Nome da disciplina" />
-                              <AdminInput label="Carga horaria" value={editDisciplinaCarga} onChange={setEditDisciplinaCarga} type="number" placeholder="72" />
-                            </div>
-                            <AdminToggle
-                              label="Disciplina intercurso"
-                              checked={editDisciplinaIntercurso}
-                              onChange={setEditDisciplinaIntercurso}
-                              description="Quando ativa, a disciplina pode ser usada em varios cursos vinculados."
-                            />
-                            <CourseSelector
-                              courses={cursos}
-                              selectedCourseIds={editDisciplinaCourseIds}
-                              onToggle={(cursoId) => toggleDisciplinaCourseSelection(cursoId, 'edit')}
-                              label="Cursos vinculados"
-                            />
-                          </div>
-                        ) : (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {disciplina.courseIds.map((cursoId) => {
-                              const curso = cursos.find((item) => item.id === cursoId);
-                              return curso ? (
-                                <span
-                                  key={`${disciplina.id}-${curso.id}`}
-                                  className="rounded-full bg-[#f2f5ff] px-3 py-1 text-xs text-[#4b56d2]"
-                                >
-                                  {curso.nome}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        )}
-                      </EditableItem>
-                    ))}
-                  </EditableSection>
-                </div>
-              </div>
-            </section>
-            ) : null}
 
             {activeView === 'apoio' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
@@ -2102,7 +1955,7 @@ export function AdminDashboardClient({
                     <EditableItem
                       key={courseSemester.id}
                       title={courseSemester.nome ?? getSemesterLabel(courseSemester.numero)}
-                      subtitle={`${getSemesterLabel(courseSemester.numero)} · ${courseSemester.ativo ? 'Ativo' : 'Inativo'}`}
+                      subtitle={`${getSemesterLabel(courseSemester.numero)} Â· ${courseSemester.ativo ? 'Ativo' : 'Inativo'}`}
                       editing={editingSemesterId === courseSemester.id}
                       saving={savingSemesterId === courseSemester.id}
                       deleting={deletingKey === `curso_semestres:${courseSemester.id}`}
@@ -2180,7 +2033,7 @@ export function AdminDashboardClient({
                       key={disciplina.id}
                       title={disciplina.nome}
                       subtitle={
-                        `${disciplina.cargaHorariaTotal ? `${disciplina.cargaHorariaTotal}h no semestre` : 'Carga horaria nao definida'} · ${disciplina.isIntercurso ? 'Intercurso' : 'Curso regular'}`
+                        `${disciplina.cargaHorariaTotal ? `${disciplina.cargaHorariaTotal}h no semestre` : 'Carga horaria nao definida'} Â· ${disciplina.isIntercurso ? 'Intercurso' : 'Curso regular'}`
                       }
                       editing={editingDisciplinaId === disciplina.id}
                       saving={savingDisciplinaId === disciplina.id}
@@ -2295,7 +2148,7 @@ export function AdminDashboardClient({
                     <EditableItem
                       key={evento.id}
                       title={evento.nome}
-                      subtitle={`${evento.data} · ${evento.tipo}`}
+                      subtitle={`${evento.data} Â· ${evento.tipo}`}
                       editing={editingEventoId === evento.id}
                       saving={savingEventoId === evento.id}
                       deleting={deletingKey === `eventos_feriados:${evento.id}`}
@@ -2331,7 +2184,7 @@ export function AdminDashboardClient({
 
           {activeView !== 'apoio' ? (
           <div className="space-y-4">
-            {(activeView === 'visao' || activeView === 'calendario' || activeView === 'disciplinas') ? (
+            {(activeView === 'visao' || activeView === 'calendario') ? (
             <section className="rounded-[28px] bg-[linear-gradient(135deg,#111827,#1f2937)] p-5 text-white">
               <div className="grid gap-3 sm:grid-cols-4">
                 <AdminStat
@@ -2358,7 +2211,7 @@ export function AdminDashboardClient({
             </section>
             ) : null}
 
-            {(activeView === 'visao' || activeView === 'disciplinas') ? (
+            {activeView === 'visao' ? (
             <section className="rounded-[28px] border border-[#ececf1] bg-[#f7f7fa] p-5">
               <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#16161a]">
                 Progresso por disciplina do curso
@@ -2490,7 +2343,7 @@ export function AdminDashboardClient({
                   <div key={card.id} className="rounded-[22px] bg-white px-4 py-4">
                     <p className="text-sm font-medium text-[#16161a]">{card.disciplinaNome}</p>
                     <p className="mt-1 text-xs text-[#7a7a84]">
-                      {getSemesterLabel(card.semestre)} · {formatDateRange(card.dataInicio, card.dataFim)}
+                      {getSemesterLabel(card.semestre)} Â· {formatDateRange(card.dataInicio, card.dataFim)}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {card.cursos.map((curso) => (
